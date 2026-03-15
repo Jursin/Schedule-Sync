@@ -1,0 +1,38 @@
+*.iml
+
+# OS
+.DS_Store
+
+# Gradle / Kotlin build metadata
+.gradle/
+.kotlin/
+
+# Build outputs
+build/
+**/build/
+captures/
+app/debug/
+app/release/
+app/src/main/generated/
+
+# Native build outputs
+.externalNativeBuild/
+.cxx/
+
+# IDE
+.idea/caches/
+.idea/libraries/
+.idea/modules.xml
+.idea/navEditor.xml
+.idea/assetWizardSettings.xml
+.idea/.name
+.idea/copilot.data.migration.ask2agent.xml
+
+# Local machine config
+local.properties
+
+# Signing / secrets
+keystore.properties
+keystore/
+*.jks
+*.keystore

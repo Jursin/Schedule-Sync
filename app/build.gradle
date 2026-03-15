@@ -1,0 +1,109 @@
+import com.android.build.api.variant.FilterConfiguration
+
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.compose)
+}
+
+android {
+    def keystoreProperties = new Properties()
+    def keystorePropertiesFile = rootProject.file("keystore.properties")
+    if (keystorePropertiesFile.exists()) {
+        keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+    }
+    def requiredSigningKeys = ["storeFile", "storePassword", "keyAlias", "keyPassword"]
+    def hasCompleteReleaseSigning = keystorePropertiesFile.exists() && requiredSigningKeys.every { key ->
+        def value = keystoreProperties[key]
+        value != null && value.toString().trim()
+    }
+
+    signingConfigs {
+        create("release") {
+            if (hasCompleteReleaseSigning) {
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                // Resolve relative keystore path from the repository root.
+                def configuredStoreFile = keystoreProperties['storeFile']
+                storeFile new File(configuredStoreFile).isAbsolute() ? file(configuredStoreFile) : rootProject.file(configuredStoreFile)
+                storePassword keystoreProperties['storePassword']
+            }
+        }
+    }
+    namespace 'com.shiguang.band'
+    compileSdk = 36
+
+    defaultConfig {
+        applicationId "com.shiguang.band"
+        minSdk = 27
+        targetSdk = 36
+        versionCode 2
+        versionName '1.2'
+
+        vectorDrawables {
+            useSupportLibrary true
+        }
+    }
+
+    buildTypes {
+        debug {
+            // Use the default debug keystore so local debug builds do not depend on release keys.
+        }
+        release {
+            if (hasCompleteReleaseSigning) {
+                signingConfig signingConfigs.getByName("release")
+            } else {
+                throw new GradleException("缺少发布签名配置，请在 keystore.properties 中填写 storeFile/storePassword/keyAlias/keyPassword")
+            }
+            minifyEnabled true
+        }
+    }
+    splits {
+        abi {
+            enable true
+            reset()
+            include 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+            universalApk false
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    buildFeatures {
+        compose true
+    }
+}
+
+// 为每个 ABI 生成不同的 versionCode：ABI 编号 * 1000 + 原始 versionCode
+ext.baseVersionCode = 2
+ext.abiCodes = ['armeabi-v7a': 1, 'arm64-v8a': 2, 'x86': 3, 'x86_64': 4]
+
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        variant.outputs.each { output ->
+            def abi = output.filters.find {
+                it.filterType == FilterConfiguration.FilterType.ABI
+            }?.identifier
+            def baseAbiVersionCode = project.ext.abiCodes.get(abi)
+            if (baseAbiVersionCode != null) {
+                output.versionCode.set(baseAbiVersionCode * 1000 + project.ext.baseVersionCode)
+            }
+        }
+    }
+}
+
+dependencies {
+    implementation libs.androidx.core.ktx
+    implementation libs.androidx.lifecycle.runtime.ktx
+    implementation libs.androidx.activity.compose
+    implementation platform(libs.androidx.compose.bom)
+    implementation libs.androidx.ui
+    implementation "androidx.compose.material:material-icons-core"
+    implementation "androidx.compose.material:material-icons-extended"
+    implementation libs.androidx.ui.tooling.preview
+    implementation libs.material3 // 确保使用 Material3 的最新版本
+    debugImplementation libs.androidx.ui.tooling
+    debugImplementation libs.androidx.ui.test.manifest
+    implementation files('libs/xms-wearable-lib_1.4_release.aar')
+    implementation libs.material
+}
