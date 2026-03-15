@@ -24,8 +24,11 @@
   - Release：`app/build/outputs/apk/release/`
 
 ## 相关仓库
-- [拾光课程表](https://github.com/XingHeYuZhuan/shiguangschedule)
 - [拾光课程表手环版](https://github.com/Jursin/ShiGuang-Vela)
+- [拾光课程表](https://github.com/XingHeYuZhuan/shiguangschedule)
+
+## 文档
+- [手环版文档](https://sgschedule.jursin.top/guide/user/band-edition.html)
 
 ## 许可协议
 [MIT](LICENSE)
