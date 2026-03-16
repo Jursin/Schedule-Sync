@@ -235,13 +235,13 @@ class MainActivity : ComponentActivity() {
             modifier = modifier
                 .background(MaterialTheme.colorScheme.background)
                 .fillMaxSize().systemBarsPadding()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(start = 16.dp, end = 16.dp, top =4.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 2.dp, horizontal = 16.dp),
+                    .padding(top = 0.dp, bottom = 1.dp, start = 16.dp, end = 16.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -270,7 +270,7 @@ class MainActivity : ComponentActivity() {
                             imageVector = if (isConnected) Icons.Filled.CheckCircle else Icons.Filled.Cancel,
                             contentDescription = if (isConnected) "已连接" else "未连接",
                             tint = statusColor,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(32.dp)
                         )
                         Text(
                             text = connectedDeviceText,
