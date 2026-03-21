@@ -1,4 +1,4 @@
-package com.shiguang.band
+package com.schedule.vela
 
 import android.Manifest
 import android.content.ContentResolver
@@ -34,7 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.shiguang.band.ui.theme.ShiGuangTheme
+import com.schedule.vela.ui.theme.ShiGuangTheme
 import com.xiaomi.xms.wearable.Wearable
 import com.xiaomi.xms.wearable.auth.Permission
 import com.xiaomi.xms.wearable.node.Node
@@ -245,7 +245,7 @@ class MainActivity : ComponentActivity() {
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "拾光课程表同步器",
+                    text = "腕上课程表同步器",
                     fontSize = 26.sp,
                      fontWeight = FontWeight.SemiBold,
                      textAlign = TextAlign.Center,
@@ -394,6 +394,7 @@ class MainActivity : ComponentActivity() {
         for (i in 0 until courses.length()) {
             val course = courses.optJSONObject(i) ?: return "courses[$i] 必须是对象"
             if (course.optString("name").isBlank()) return "courses[$i].name 必填"
+            if (course.optString("teacher").isBlank()) return "courses[$i].teacher 必填"
             if (course.optString("position").isBlank()) return "courses[$i].position 必填"
             if (!course.has("day")) return "courses[$i].day 必填"
             val weeks = course.optJSONArray("weeks") ?: return "courses[$i].weeks 必填"

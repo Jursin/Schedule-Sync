@@ -1,4 +1,4 @@
-package com.shiguang.band.ui.theme
+package com.schedule.vela.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

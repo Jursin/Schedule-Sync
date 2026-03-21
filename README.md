@@ -1,4 +1,4 @@
-# 拾光课程表同步器
+# 腕上课程表同步器
 
 ![Android](https://img.shields.io/badge/Android-%E2%89%A58.1-blue?style=flat&logo=android&logoColor=%233DDC84&labelColor=%2302303A)
 ![Gradle](https://img.shields.io/badge/Gradle-9.1.0-blue?style=flat&logo=gradle&labelColor=%2302303A)
@@ -24,11 +24,10 @@
   - Release：`app/build/outputs/apk/release/`
 
 ## 相关仓库
-- [拾光课程表手环版](https://github.com/Jursin/ShiGuang-Vela)
-- [拾光课程表](https://github.com/XingHeYuZhuan/shiguangschedule)
+- [腕上课程表](https://github.com/Jursin/Schedule-Vela)
 
 ## 文档
-- [手环版文档](https://sgschedule.jursin.top/guide/user/band-edition.html)
+- [使用文档](https://sgschedule.jursin.top/guide/user/band-edition.html)
 
 ## 许可协议
 [MIT](LICENSE)
