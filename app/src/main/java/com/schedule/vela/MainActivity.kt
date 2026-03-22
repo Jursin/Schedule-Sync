@@ -163,7 +163,137 @@ class MainActivity : ComponentActivity() {
                     e.message?.let { log(it) }
                 }}
     }
-    @Composable
+    // MainActivity 成员函数
+    fun confirmImport(context: android.content.Context, pendingFileUri: Uri?) {
+        if(::nodeId.isInitialized) {
+            if (pendingFileUri == null) {
+                Toast.makeText(this, "请先选择配置文件", Toast.LENGTH_SHORT).show()
+                return
+            }
+            val contentResolver = context.contentResolver
+            val fileName = getFileName(contentResolver, pendingFileUri)
+            val jsonText: String? = if (fileName.endsWith(".wakeup_schedule")) {
+                log("开始转化")
+                val wakeupText = readTextFromUri(contentResolver, pendingFileUri)
+                if (wakeupText == null) {
+                    Toast.makeText(this, "读取配置文件失败", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                try {
+                    val converted = convertWakeupScheduleToJson(wakeupText)
+                    log("转化成功")
+                    converted
+                } catch (e: Exception) {
+                    log("转化失败: ${e.message}")
+                    Toast.makeText(this, "转化失败: ${e.message}", Toast.LENGTH_LONG).show()
+                    return
+                }
+            } else {
+                readTextFromUri(contentResolver, pendingFileUri)
+            }
+            if (jsonText == null) {
+                Toast.makeText(this, "读取配置文件失败", Toast.LENGTH_SHORT).show()
+                return
+            }
+            val validationError = validateScheduleConfig(jsonText)
+            if (validationError != null) {
+                log("导入失败，缺失${extractMissingItem(validationError)}")
+                Toast.makeText(this, validationError, Toast.LENGTH_LONG).show()
+                return
+            }
+            sendMessageToWearable(jsonText)
+        } else {
+            Toast.makeText(this, "未连接到设备", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // wakeup_schedule 转 json
+    private fun convertWakeupScheduleToJson(wakeupText: String): String {
+        // 解析分段
+        val segments = wakeupText.split("\n").filter { it.trim().isNotEmpty() }
+        val jsonObjects = mutableListOf<String>()
+        var buffer = StringBuilder()
+        for (line in segments) {
+            buffer.append(line)
+            if (line.trim().endsWith("}")) {
+                jsonObjects.add(buffer.toString())
+                buffer = StringBuilder()
+            } else if (line.trim().endsWith("]")) {
+                jsonObjects.add(buffer.toString())
+                buffer = StringBuilder()
+            } else {
+                buffer.append("\n")
+            }
+        }
+        if (buffer.isNotEmpty()) jsonObjects.add(buffer.toString())
+
+        if (jsonObjects.size < 5) throw Exception("wakeup_schedule 文件结构异常")
+
+        val timeSlotsArr = JSONArray(jsonObjects[1])
+        val tableConfig = JSONObject(jsonObjects[2])
+        val courseListArr = JSONArray(jsonObjects[3])
+        val courseArr = JSONArray(jsonObjects[4])
+
+        // timeSlots
+        val timeSlots = JSONArray()
+        for (i in 0 until timeSlotsArr.length()) {
+            val slot = timeSlotsArr.getJSONObject(i)
+            val obj = JSONObject()
+            obj.put("number", slot.optInt("node"))
+            obj.put("startTime", slot.optString("startTime"))
+            obj.put("endTime", slot.optString("endTime"))
+            timeSlots.put(obj)
+        }
+
+        // config
+        val config = JSONObject()
+        config.put("semesterStartDate", tableConfig.optString("startDate"))
+        config.put("semesterTotalWeeks", tableConfig.optInt("maxWeek"))
+
+        // 课程名与id映射
+        val courseIdNameMap = mutableMapOf<Int, String>()
+        for (i in 0 until courseListArr.length()) {
+            val c = courseListArr.getJSONObject(i)
+            courseIdNameMap[c.optInt("id")] = c.optString("courseName")
+        }
+
+        // courses
+        val courses = JSONArray()
+        for (i in 0 until courseArr.length()) {
+            val c = courseArr.getJSONObject(i)
+            val courseObj = JSONObject()
+            val courseId = c.optInt("id")
+            courseObj.put("name", courseIdNameMap[courseId] ?: "")
+            courseObj.put("teacher", c.optString("teacher"))
+            courseObj.put("position", c.optString("room"))
+            courseObj.put("day", c.optInt("day"))
+            // weeks
+            val startWeek = c.optInt("startWeek")
+            val endWeek = c.optInt("endWeek")
+            val weeks = JSONArray()
+            for (w in startWeek..endWeek) weeks.put(w)
+            courseObj.put("weeks", weeks)
+            // isCustomTime
+            val ownTime = c.optBoolean("ownTime", false)
+            courseObj.put("isCustomTime", ownTime)
+            if (ownTime) {
+                courseObj.put("customStartTime", c.optString("startTime"))
+                courseObj.put("customEndTime", c.optString("endTime"))
+            } else {
+                courseObj.put("startSection", c.optInt("startNode"))
+                courseObj.put("endSection", c.optInt("startNode") + c.optInt("step") - 1)
+            }
+            courses.put(courseObj)
+        }
+
+        val root = JSONObject()
+        root.put("courses", courses)
+        root.put("timeSlots", timeSlots)
+        root.put("config", config)
+        return root.toString()
+    }
+
+        @Composable
     fun MainContent(modifier: Modifier = Modifier) {
         val context = LocalContext.current
         var connectedDeviceText by remember { mutableStateOf("设备未连接") }
@@ -186,41 +316,15 @@ class MainActivity : ComponentActivity() {
                 pendingFileUri = it
                 selectedFileName = getFileName(context.contentResolver, it)
                 log("已选择 $selectedFileName")
-             }
-         }
+            }
+        }
         fun startPickFile(){
             if(::nodeId.isInitialized) {
                 pickFileLauncher.launch(arrayOf("application/json", "text/json", "text/plain", "*/*"))
             }else{
-                Toast.makeText(this, "未连接到设备", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, "未连接到设备", Toast.LENGTH_SHORT).show()
             }
         }
-        fun confirmImport(){
-             if(::nodeId.isInitialized) {
-                val targetUri = pendingFileUri
-                if (targetUri == null) {
-                    Toast.makeText(this, "请先选择配置文件", Toast.LENGTH_SHORT).show()
-                    return
-                }
-                val contentResolver = context.contentResolver
-                val jsonText = readTextFromUri(contentResolver, targetUri)
-                if (jsonText == null) {
-                    Toast.makeText(this, "读取配置文件失败", Toast.LENGTH_SHORT).show()
-                    return
-                }
-
-                val validationError = validateScheduleConfig(jsonText)
-                if (validationError != null) {
-                    log("导入失败，缺失${extractMissingItem(validationError)}")
-                    Toast.makeText(this, validationError, Toast.LENGTH_LONG).show()
-                    return
-                }
-                sendMessageToWearable(jsonText)
-              }else{
-                  Toast.makeText(this, "未连接到设备", Toast.LENGTH_SHORT).show()
-              }
-          }
-
         LaunchedEffect(Unit) {
             while (!(::nodeId.isInitialized)) {
                 // 更新文本
@@ -230,7 +334,6 @@ class MainActivity : ComponentActivity() {
             }
             connectedDeviceText = "${curNode.name}"
         }
-
         Column(
             modifier = modifier
                 .background(MaterialTheme.colorScheme.background)
@@ -247,9 +350,9 @@ class MainActivity : ComponentActivity() {
                 Text(
                     text = "腕上课程表同步器",
                     fontSize = 26.sp,
-                     fontWeight = FontWeight.SemiBold,
-                     textAlign = TextAlign.Center,
-                     color = MaterialTheme.colorScheme.onSurface
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
 
@@ -297,7 +400,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
                 Button(
-                    onClick = { confirmImport() },
+                    onClick = { confirmImport(context, pendingFileUri) },
                     modifier = Modifier.weight(1f),
                     shape = importButtonShape,
                     colors = ButtonDefaults.buttonColors(

@@ -27,6 +27,7 @@ app/src/main/generated/
 .idea/assetWizardSettings.xml
 .idea/.name
 .idea/copilot.data.migration.ask2agent.xml
+.idea/copilotDiffState.xml
 
 # Local machine config
 local.properties
