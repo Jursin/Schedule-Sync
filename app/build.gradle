@@ -34,8 +34,8 @@ android {
         applicationId "com.schedule.vela"
         minSdk = 27
         targetSdk = 36
-        versionCode 3
-        versionName '1.2.1'
+        versionCode 4
+        versionName '1.2.2'
 
         vectorDrawables {
             useSupportLibrary true
@@ -82,7 +82,8 @@ dependencies {
     implementation libs.androidx.compose.material.icons.core
     implementation libs.androidx.compose.material.icons.extended
     implementation libs.androidx.ui.tooling.preview
-    implementation libs.material3 // 确保使用 Material3 的最新版本
+    implementation libs.material3
+    implementation libs.androidx.compose.foundation// 确保使用 Material3 的最新版本
     debugImplementation libs.androidx.ui.tooling
     debugImplementation libs.androidx.ui.test.manifest
     implementation files('libs/xms-wearable-lib_1.4_release.aar')

@@ -29,6 +29,8 @@ app/src/main/generated/
 .idea/copilot.data.migration.ask2agent.xml
 .idea/copilotDiffState.xml
 
+.github/skills
+
 # Local machine config
 local.properties
 

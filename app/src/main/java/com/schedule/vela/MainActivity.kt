@@ -1,434 +1,246 @@
 package com.schedule.vela
 
-import android.Manifest
-import android.content.ContentResolver
-import android.content.pm.PackageManager
-import android.net.Uri
+import android.content.Intent
 import android.os.Bundle
-import android.provider.OpenableColumns
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Cancel
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Cancel
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.foundation.text.ClickableText
+import androidx.compose.material.icons.outlined.Help
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import com.schedule.vela.ui.theme.ShiGuangTheme
-import com.xiaomi.xms.wearable.Wearable
-import com.xiaomi.xms.wearable.auth.Permission
-import com.xiaomi.xms.wearable.node.Node
-import com.xiaomi.xms.wearable.node.NodeApi
-import kotlinx.coroutines.delay
-import org.json.JSONArray
-import org.json.JSONException
-import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.InputStreamReader
 
 class MainActivity : ComponentActivity() {
-
-    private lateinit var nodeId: String
-    private lateinit var curNode:Node
-    private lateinit var nodeApi:NodeApi
-    // 全局状态
-    private var logTextState = mutableStateOf("")
-    private var isConnectedState = mutableStateOf(false)
-    private var lastAutoOpenedNodeId: String? = null
+    private val viewModel: MainViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        nodeApi= Wearable.getNodeApi(this)
         enableEdgeToEdge()
         setContent {
             ShiGuangTheme {
-                MainContent()
+                MainScaffold(viewModel)
             }
         }
-    }
-    //发送信息
-    private fun sendMessageToWearable(message: String) {
-        val messageApi = Wearable.getMessageApi(this)
-        if (::nodeId.isInitialized) {
-            messageApi.sendMessage(nodeId, message.toByteArray())
-                .addOnSuccessListener {
-                    log("导入成功")
-                    Toast.makeText(this, "配置发送成功", Toast.LENGTH_SHORT).show()
-                }
-                .addOnFailureListener { e ->
-                    log("导入失败")
-                    Toast.makeText(this, "配置发送失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                }
-        } else {
-            Toast.makeText(this, "未连接到设备", Toast.LENGTH_SHORT).show()
-        }
-    }
-    // 查询已连接的设备
-    private fun queryConnectedDevices() {
-        nodeApi.connectedNodes.addOnSuccessListener { nodes ->
-            if (nodes.isNotEmpty()) {
-                curNode = nodes[0]
-                nodeId = curNode.id
-                isConnectedState.value = true
-                //connectedDeviceText.text =getString(R.string.connStat)+curNode.name
-                log("已连接${curNode.name}")
-                if (lastAutoOpenedNodeId != nodeId) {
-                    nodeApi.isWearAppInstalled(nodeId)
-                        .addOnSuccessListener {
-                            nodeApi.launchWearApp(nodeId, "pages/index")
-                                .addOnSuccessListener {
-                                    lastAutoOpenedNodeId = nodeId
-                                    log("打开手环端快应用成功")
-                                }
-                                .addOnFailureListener {
-                                    log("打开手环端快应用失败")
-                                }
-                        }
-                        .addOnFailureListener {
-                            log("手环未安装快应用")
-                            Toast.makeText(
-                                this,
-                                "手环未安装快应用！如果已经安装，请尝试重启手环",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                }
-                checkAndRequestPermissions()
-            } else {
-                isConnectedState.value = false
-                //connectedDeviceText.text =getString(R.string.connStat)+"None"
-            }
-        }.addOnFailureListener { e ->
-            isConnectedState.value = false
-            Toast.makeText(
-                this,
-                "获取已连接设备失败: ${e.message}",
-                Toast.LENGTH_SHORT
-            ).show()
-        }
+        viewModel.startDeviceQuery()
     }
 
-    // 申请权限
-    private fun checkAndRequestPermissions() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH) != PackageManager.PERMISSION_GRANTED) {
-            // 请求蓝牙权限
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.BLUETOOTH), 1001)
-        }
-        val authApi = Wearable.getAuthApi(this)
-        if (::nodeId.isInitialized) {
-            val did =nodeId  // 填入你的设备 ID
-            authApi.checkPermission(did, Permission.DEVICE_MANAGER)
-                .addOnSuccessListener { granted ->
-                    if (!granted) {
-                        authApi.requestPermission(did, Permission.DEVICE_MANAGER)
-                            .addOnSuccessListener {
-                                log("权限已授予")
-                            }.addOnFailureListener { e ->
-                                val errorMessage = e.message.orEmpty()
-                                if (errorMessage.contains("fingerprint verify failed", ignoreCase = true)) {
-                                    log("权限申请失败：指纹校验未通过，请检查手机端包名和签名是否已在手环快应用端正确配置")
-                                    Toast.makeText(this, "指纹校验失败，请检查包名和签名配置", Toast.LENGTH_LONG).show()
-                                }
-                                Toast.makeText(this, "申请权限失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                            }
-                    } else {
-                        log("权限已授予")
-                    }
-                }.addOnFailureListener { e ->
-                    val errorMessage = e.message.orEmpty()
-                    if (errorMessage.contains("fingerprint verify failed", ignoreCase = true)) {
-                        log("权限检查失败：指纹校验未通过，请检查手机端包名和签名是否已在手环快应用端正确配置")
-                        Toast.makeText(this, "指纹校验失败，请检查包名和签名配置", Toast.LENGTH_LONG).show()
-                    }
-                    e.message?.let { log(it) }
-                }}
-    }
-    // MainActivity 成员函数
-    fun confirmImport(context: android.content.Context, pendingFileUri: Uri?) {
-        if(::nodeId.isInitialized) {
-            if (pendingFileUri == null) {
-                Toast.makeText(this, "请先选择配置文件", Toast.LENGTH_SHORT).show()
-                return
-            }
-            val contentResolver = context.contentResolver
-            val fileName = getFileName(contentResolver, pendingFileUri)
-            val jsonText: String? = if (fileName.endsWith(".wakeup_schedule")) {
-                log("开始转化")
-                val wakeupText = readTextFromUri(contentResolver, pendingFileUri)
-                if (wakeupText == null) {
-                    Toast.makeText(this, "读取配置文件失败", Toast.LENGTH_SHORT).show()
-                    return
-                }
-                try {
-                    val converted = convertWakeupScheduleToJson(wakeupText)
-                    log("转化成功")
-                    converted
-                } catch (e: Exception) {
-                    log("转化失败: ${e.message}")
-                    Toast.makeText(this, "转化失败: ${e.message}", Toast.LENGTH_LONG).show()
-                    return
-                }
-            } else {
-                readTextFromUri(contentResolver, pendingFileUri)
-            }
-            if (jsonText == null) {
-                Toast.makeText(this, "读取配置文件失败", Toast.LENGTH_SHORT).show()
-                return
-            }
-            val validationError = validateScheduleConfig(jsonText)
-            if (validationError != null) {
-                log("导入失败，缺失${extractMissingItem(validationError)}")
-                Toast.makeText(this, validationError, Toast.LENGTH_LONG).show()
-                return
-            }
-            sendMessageToWearable(jsonText)
-        } else {
-            Toast.makeText(this, "未连接到设备", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    // wakeup_schedule 转 json
-    private fun convertWakeupScheduleToJson(wakeupText: String): String {
-        // 解析分段
-        val segments = wakeupText.split("\n").filter { it.trim().isNotEmpty() }
-        val jsonObjects = mutableListOf<String>()
-        var buffer = StringBuilder()
-        for (line in segments) {
-            buffer.append(line)
-            if (line.trim().endsWith("}")) {
-                jsonObjects.add(buffer.toString())
-                buffer = StringBuilder()
-            } else if (line.trim().endsWith("]")) {
-                jsonObjects.add(buffer.toString())
-                buffer = StringBuilder()
-            } else {
-                buffer.append("\n")
-            }
-        }
-        if (buffer.isNotEmpty()) jsonObjects.add(buffer.toString())
-
-        if (jsonObjects.size < 5) throw Exception("wakeup_schedule 文件结构异常")
-
-        val timeSlotsArr = JSONArray(jsonObjects[1])
-        val tableConfig = JSONObject(jsonObjects[2])
-        val courseListArr = JSONArray(jsonObjects[3])
-        val courseArr = JSONArray(jsonObjects[4])
-
-        // timeSlots
-        val timeSlots = JSONArray()
-        for (i in 0 until timeSlotsArr.length()) {
-            val slot = timeSlotsArr.getJSONObject(i)
-            val obj = JSONObject()
-            obj.put("number", slot.optInt("node"))
-            obj.put("startTime", slot.optString("startTime"))
-            obj.put("endTime", slot.optString("endTime"))
-            timeSlots.put(obj)
-        }
-
-        // config
-        val config = JSONObject()
-        config.put("semesterStartDate", tableConfig.optString("startDate"))
-        config.put("semesterTotalWeeks", tableConfig.optInt("maxWeek"))
-
-        // 课程名与id映射
-        val courseIdNameMap = mutableMapOf<Int, String>()
-        for (i in 0 until courseListArr.length()) {
-            val c = courseListArr.getJSONObject(i)
-            courseIdNameMap[c.optInt("id")] = c.optString("courseName")
-        }
-
-        // courses
-        val courses = JSONArray()
-        for (i in 0 until courseArr.length()) {
-            val c = courseArr.getJSONObject(i)
-            val courseObj = JSONObject()
-            val courseId = c.optInt("id")
-            courseObj.put("name", courseIdNameMap[courseId] ?: "")
-            courseObj.put("teacher", c.optString("teacher"))
-            courseObj.put("position", c.optString("room"))
-            courseObj.put("day", c.optInt("day"))
-            // weeks
-            val startWeek = c.optInt("startWeek")
-            val endWeek = c.optInt("endWeek")
-            val weeks = JSONArray()
-            for (w in startWeek..endWeek) weeks.put(w)
-            courseObj.put("weeks", weeks)
-            // isCustomTime
-            val ownTime = c.optBoolean("ownTime", false)
-            courseObj.put("isCustomTime", ownTime)
-            if (ownTime) {
-                courseObj.put("customStartTime", c.optString("startTime"))
-                courseObj.put("customEndTime", c.optString("endTime"))
-            } else {
-                courseObj.put("startSection", c.optInt("startNode"))
-                courseObj.put("endSection", c.optInt("startNode") + c.optInt("step") - 1)
-            }
-            courses.put(courseObj)
-        }
-
-        val root = JSONObject()
-        root.put("courses", courses)
-        root.put("timeSlots", timeSlots)
-        root.put("config", config)
-        return root.toString()
-    }
-
-        @Composable
-    fun MainContent(modifier: Modifier = Modifier) {
+    // Scaffold 布局
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    fun MainScaffold(viewModel: MainViewModel) {
         val context = LocalContext.current
-        var connectedDeviceText by remember { mutableStateOf("设备未连接") }
-        var isConnected by remember { isConnectedState }
-        var logText by remember { logTextState }
-        var pendingFileUri by remember { mutableStateOf<Uri?>(null) }
-        var selectedFileName by remember { mutableStateOf("选择配置文件") }
-        val importButtonShape = RoundedCornerShape(12.dp)
-        val logCardBackgroundColor = MaterialTheme.colorScheme.surfaceVariant
-        val deviceCardContainerColor = if (isSystemInDarkTheme()) {
-            MaterialTheme.colorScheme.surfaceContainerHigh
-        } else {
-            MaterialTheme.colorScheme.surface
+        val showAboutDialog by viewModel.showAboutDialog
+        val isConnected by viewModel.isConnectedState
+        val connectedDeviceText by viewModel.connectedDeviceText
+        val logText by viewModel.logTextState
+        val selectedFileName by viewModel.selectedFileName
+        // 文件选择 launcher
+        val pickFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            uri?.let { viewModel.onFilePicked(context.contentResolver, it) }
         }
-        // 启动文件选择器
-        val pickFileLauncher = rememberLauncherForActivityResult(
-            contract = ActivityResultContracts.OpenDocument()
-        ) { uri: Uri? ->
-            uri?.let {
-                pendingFileUri = it
-                selectedFileName = getFileName(context.contentResolver, it)
-                log("已选择 $selectedFileName")
-            }
-        }
-        fun startPickFile(){
-            if(::nodeId.isInitialized) {
-                pickFileLauncher.launch(arrayOf("application/json", "text/json", "text/plain", "*/*"))
-            }else{
-                Toast.makeText(this@MainActivity, "未连接到设备", Toast.LENGTH_SHORT).show()
-            }
-        }
-        LaunchedEffect(Unit) {
-            while (!(::nodeId.isInitialized)) {
-                // 更新文本
-                queryConnectedDevices()
-                // 延迟一段时间再更新
-                delay(1000) // 每秒更新一次
-            }
-            connectedDeviceText = "${curNode.name}"
-        }
-        Column(
-            modifier = modifier
-                .background(MaterialTheme.colorScheme.background)
-                .fillMaxSize().systemBarsPadding()
-                .padding(start = 16.dp, end = 16.dp, top =4.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 0.dp, bottom = 1.dp, start = 16.dp, end = 16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "腕上课程表同步器",
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurface
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = "腕上课程表同步器",
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    },
+                    actions = {
+                        IconButton(onClick = {
+                            val intent = Intent(Intent.ACTION_VIEW,
+                                "https://blog.jursin.top/blog/60fsmnc1/".toUri())
+                            context.startActivity(intent)
+                        }) {
+                            Icon(Icons.Outlined.Help, contentDescription = "帮助")
+                        }
+                        IconButton(onClick = { viewModel.showAboutDialog.value = true }) {
+                            Icon(Icons.Outlined.Info, contentDescription = "关于")
+                        }
+                    }
                 )
             }
+        ) { innerPadding ->
+            MainContent(
+                modifier = Modifier.padding(innerPadding),
+                isConnected = isConnected,
+                connectedDeviceText = connectedDeviceText,
+                logText = logText,
+                selectedFileName = selectedFileName,
+                onPickFile = { pickFileLauncher.launch(arrayOf("application/json", "text/json", "text/plain", "*/*")) },
+                onConfirmImport = viewModel::confirmImport
+            )
+            if (showAboutDialog) {
+                AboutDialog(onDismiss = { viewModel.showAboutDialog.value = false })
+            }
+        }
+    }
 
-            // 已连接设备信息卡片
+    // 内容区，调用ViewModel状态
+    @Composable
+    fun MainContent(
+        modifier: Modifier = Modifier,
+        isConnected: Boolean,
+        connectedDeviceText: String,
+        logText: String,
+        selectedFileName: String,
+        onPickFile: () -> Unit = {},
+        onConfirmImport: (context: android.content.Context) -> Unit = {},
+    ) {
+        val context = LocalContext.current
+        val cardShape = RoundedCornerShape(20.dp)
+        val cardElevation = 2.dp
+        val cardBorder = BorderStroke(0.25.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.08f))
+        val cardColors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+            contentColor = MaterialTheme.colorScheme.onSurface
+        )
+        val statusColor = MaterialTheme.colorScheme.primary
+        val logCardBackgroundColor = MaterialTheme.colorScheme.secondaryContainer
+        val importButtonShape = RoundedCornerShape(20.dp)
+
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(4.dp),
-                border = CardDefaults.outlinedCardBorder(),
-                colors = CardDefaults.cardColors(containerColor = deviceCardContainerColor)
+                shape = cardShape,
+                elevation = CardDefaults.cardElevation(cardElevation),
+                border = cardBorder,
+                colors = cardColors,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    val statusColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Row(
+                    modifier = Modifier.padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer)
                     ) {
                         Icon(
-                            imageVector = if (isConnected) Icons.Filled.CheckCircle else Icons.Filled.Cancel,
+                            imageVector = if (isConnected) Icons.Outlined.CheckCircle else Icons.Outlined.Cancel,
                             contentDescription = if (isConnected) "已连接" else "未连接",
                             tint = statusColor,
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.align(Alignment.Center).size(32.dp)
                         )
+                    }
+                    Column {
                         Text(
                             text = connectedDeviceText,
                             fontSize = 20.sp,
                             style = MaterialTheme.typography.bodyLarge,
                             color = statusColor
                         )
+                        Spacer(Modifier.height(2.dp))
                     }
                 }
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            Card(
+                shape = cardShape,
+                elevation = CardDefaults.cardElevation(cardElevation),
+                border = cardBorder,
+                colors = cardColors,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Button(
-                    onClick = { startPickFile() } ,
-                    modifier = Modifier.weight(1f),
-                    shape = importButtonShape
-                ) {
+                Column(modifier = Modifier.padding(20.dp)) {
                     Text(
-                        text = selectedFileName,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        text = "导入课程表",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
                     )
-                }
-                Button(
-                    onClick = { confirmImport(context, pendingFileUri) },
-                    modifier = Modifier.weight(1f),
-                    shape = importButtonShape,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = logCardBackgroundColor,
-                        contentColor = MaterialTheme.colorScheme.onSurface
-                    )
-                ) {
-                    Text("确认导入")
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Button(
+                            onClick = onPickFile,
+                            modifier = Modifier.weight(1f),
+                            shape = importButtonShape,
+                            contentPadding = ButtonDefaults.ContentPadding,
+                            colors = ButtonDefaults.buttonColors(),
+                        ) {
+                            Text(
+                                text = selectedFileName,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Button(
+                            onClick = { onConfirmImport(context) },
+                            modifier = Modifier.weight(1f),
+                            shape = importButtonShape,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = logCardBackgroundColor,
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        ) {
+                            Text("确认导入")
+                        }
+                    }
                 }
             }
-            // 日志显示卡片
             Card(
+                shape = cardShape,
+                elevation = CardDefaults.cardElevation(cardElevation),
+                border = cardBorder,
+                colors = CardDefaults.cardColors(containerColor = logCardBackgroundColor),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f, fill = true),
-                elevation = CardDefaults.cardElevation(4.dp),
-                colors = CardDefaults.cardColors(containerColor = logCardBackgroundColor) // 与确认导入按钮使用同一背景色
+                    .weight(1f, fill = true)
             ) {
-                Text(
-                    modifier = Modifier.padding(16.dp),
-                    text = "日志",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer // 动态颜色
-                )
-                Column(modifier = Modifier
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .verticalScroll(rememberScrollState())) {
+                Column(
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Text(
+                        modifier = Modifier.padding(top = 8.dp, bottom = 8.dp),
+                        text = "日志",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
                     Text(
                         text = logText,
                         style = MaterialTheme.typography.bodyMedium,
@@ -438,98 +250,106 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    @Composable
+    fun AboutDialog(onDismiss: () -> Unit) {
+        val context = LocalContext.current
+        val versionName = try {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "-"
+        } catch (_: Exception) { "-" }
+        val versionCode = try {
+            @Suppress("DEPRECATION")
+            context.packageManager.getPackageInfo(context.packageName, 0).versionCode.toString()
+        } catch (_: Exception) { "-" }
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            confirmButton = {
+                TextButton(onClick = onDismiss) { Text("关闭") }
+            },
+            iconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            title = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.primaryContainer)
+                            .padding(4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        androidx.compose.foundation.Image(
+                            painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+                            contentDescription = null,
+                            modifier = Modifier.size(56.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = try {
+                                context.applicationInfo.loadLabel(context.packageManager).toString()
+                            } catch (_: Exception) { "腕上课程表同步器" },
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 22.sp
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = "v$versionName ($versionCode)",
+                            fontSize = 15.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
+            text = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    val annotatedString = buildAnnotatedString {
+                        val githubUrl = "https://github.com/Jursin/Schedule-Vela"
+                        append("在 ")
+                        pushStringAnnotation(tag = "URL", annotation = githubUrl)
+                        withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)) {
+                            append("GitHub")
+                        }
+                        pop()
+                        withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurface)) {
+                            append(" 中查看源码")
+                        }
+                    }
+                    ClickableText(
+                        text = annotatedString,
+                        style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp),
+                        onClick = { offset ->
+                            annotatedString.getStringAnnotations(tag = "URL", start = offset, end = offset)
+                                .firstOrNull()?.let { sa ->
+                                    val intent = Intent(Intent.ACTION_VIEW, sa.item.toUri())
+                                    context.startActivity(intent)
+                                }
+                        }
+                    )
+                }
+            }
+        )
+    }
+
     @Preview(showBackground = true)
     @Composable
     fun GreetingPreview() {
         ShiGuangTheme {
-            MainContent()
-        }
-    }
-    // 方法用于添加日志
-    private fun log(message:Any) {
-        logTextState.value +="$message\n"
-    }
-
-    private fun getFileName(contentResolver: ContentResolver, uri: Uri): String {
-        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                return cursor.getString(0)
-            }
-        }
-        return uri.lastPathSegment?.substringAfterLast('/') ?: "已选择文件"
-    }
-
-    private fun readTextFromUri(contentResolver: ContentResolver, uri: Uri): String? {
-        val stringBuilder = StringBuilder()
-        contentResolver.openInputStream(uri)?.use { inputStream ->
-            BufferedReader(InputStreamReader(inputStream)).use { reader ->
-                var line: String?
-                while (reader.readLine().also { line = it } != null) {
-                    stringBuilder.append(line).append("\n")
-                }
-            }
-        }
-        return if (stringBuilder.isEmpty()) null else stringBuilder.toString()
-    }
-
-    private fun validateScheduleConfig(jsonText: String): String? {
-        val root = try {
-            JSONObject(jsonText)
-        } catch (_: JSONException) {
-            return "配置文件不是有效 JSON"
-        }
-
-        val courses = root.optJSONArray("courses") ?: return "缺少必填项 courses"
-        val timeSlots = root.optJSONArray("timeSlots") ?: return "缺少必填项 timeSlots"
-        val config = root.optJSONObject("config") ?: return "缺少必填项 config"
-
-        validateCourses(courses)?.let { return it }
-        validateTimeSlots(timeSlots)?.let { return it }
-
-        if (config.optString("semesterStartDate").isBlank()) {
-            return "config.semesterStartDate 必填"
-        }
-
-        return null
-    }
-
-    private fun validateCourses(courses: JSONArray): String? {
-        for (i in 0 until courses.length()) {
-            val course = courses.optJSONObject(i) ?: return "courses[$i] 必须是对象"
-            if (course.optString("name").isBlank()) return "courses[$i].name 必填"
-            if (course.optString("teacher").isBlank()) return "courses[$i].teacher 必填"
-            if (course.optString("position").isBlank()) return "courses[$i].position 必填"
-            if (!course.has("day")) return "courses[$i].day 必填"
-            val weeks = course.optJSONArray("weeks") ?: return "courses[$i].weeks 必填"
-            if (weeks.length() == 0) return "courses[$i].weeks 不能为空"
-
-            val isCustomTime = course.optBoolean("isCustomTime", false)
-            if (isCustomTime) {
-                if (course.optString("customStartTime").isBlank()) return "courses[$i].customStartTime 必填"
-                if (course.optString("customEndTime").isBlank()) return "courses[$i].customEndTime 必填"
-            } else {
-                if (!course.has("startSection")) return "courses[$i].startSection 必填"
-                if (!course.has("endSection")) return "courses[$i].endSection 必填"
-            }
-        }
-        return null
-    }
-
-    private fun validateTimeSlots(timeSlots: JSONArray): String? {
-        for (i in 0 until timeSlots.length()) {
-            val timeSlot = timeSlots.optJSONObject(i) ?: return "timeSlots[$i] 必须是对象"
-            if (!timeSlot.has("number")) return "timeSlots[$i].number 必填"
-            if (timeSlot.optString("startTime").isBlank()) return "timeSlots[$i].startTime 必填"
-            if (timeSlot.optString("endTime").isBlank()) return "timeSlots[$i].endTime 必填"
-        }
-        return null
-    }
-
-    private fun extractMissingItem(validationError: String): String {
-        return when {
-            validationError.startsWith("缺少必填项 ") -> validationError.removePrefix("缺少必填项 ")
-            validationError.endsWith(" 必填") -> validationError.removeSuffix(" 必填")
-            else -> validationError
+            MainContent(
+                isConnected = false,
+                connectedDeviceText = "未连接设备",
+                logText = "这是日志预览内容",
+                selectedFileName = "test.json"
+            )
         }
     }
 }

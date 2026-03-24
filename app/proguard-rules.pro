@@ -19,3 +19,9 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# 保证主入口和核心 ViewModel 不被混淆或移除
+-keep class com.schedule.vela.MainActivity { *; }
+-keep class com.schedule.vela.MainViewModel { *; }
+-keep class androidx.activity.ComponentActivity { *; }
+-keep class androidx.lifecycle.ViewModel { *; }
