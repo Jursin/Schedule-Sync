@@ -54,6 +54,7 @@ class MainActivity : ComponentActivity() {
     }
 
     // Scaffold 布局
+    @Suppress("DEPRECATION")
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun MainScaffold(viewModel: MainViewModel) {
@@ -251,6 +252,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @Suppress("DEPRECATION")
     @Composable
     fun AboutDialog(onDismiss: () -> Unit) {
         val context = LocalContext.current
@@ -313,8 +315,10 @@ class MainActivity : ComponentActivity() {
                     horizontalArrangement = Arrangement.Center
                 ) {
                     val annotatedString = buildAnnotatedString {
-                        val githubUrl = "https://github.com/Jursin/Schedule-Vela"
-                        append("在 ")
+                        val githubUrl = "https://github.com/Jursin/Schedule-Sync"
+                        withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurface)) {
+                            append("在 ")
+                        }
                         pushStringAnnotation(tag = "URL", annotation = githubUrl)
                         withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)) {
                             append("GitHub")
