@@ -296,7 +296,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         for (i in 0 until courses.length()) {
             val course = courses.optJSONObject(i) ?: return "courses[$i] 必须是对象"
             if (course.optString("name").isBlank()) return "courses[$i].name 必填"
-            if (course.optString("teacher").isBlank()) return "courses[$i].teacher 必填"
             if (course.optString("position").isBlank()) return "courses[$i].position 必填"
             if (!course.has("day")) return "courses[$i].day 必填"
             val weeks = course.optJSONArray("weeks") ?: return "courses[$i].weeks 必填"
