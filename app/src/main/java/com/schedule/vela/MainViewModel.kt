@@ -34,6 +34,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var lastAutoOpenedNodeId: String? = null
     private val nodeApi: NodeApi = Wearable.getNodeApi(application)
 
+    private var hasLoggedNoDevice = false
+
     fun startDeviceQuery() {
         viewModelScope.launch {
             while (nodeId == null) {
@@ -54,7 +56,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 curNode = nodes[0]
                 nodeId = curNode?.id
                 isConnectedState.value = true
-                log("已连接${curNode?.name}")
+                hasLoggedNoDevice = false
+                log("已连接到设备：${curNode?.name ?: "未知"}")
                 if (lastAutoOpenedNodeId != nodeId) {
                     nodeId?.let { id ->
                         nodeApi.isWearAppInstalled(id)
@@ -62,10 +65,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 nodeApi.launchWearApp(id, "pages/index")
                                     .addOnSuccessListener {
                                         lastAutoOpenedNodeId = id
-                                        log("打开手环端快应用成功")
+                                        log("手环端快应用启动成功")
                                     }
                                     .addOnFailureListener {
-                                        log("打开手环端快应用失败")
+                                        log("手环端快应用启动失败")
                                     }
                             }
                             .addOnFailureListener {
@@ -76,10 +79,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 checkAndRequestPermissions()
             } else {
                 isConnectedState.value = false
+                if (!hasLoggedNoDevice) {
+                    log("未检测到已连接的设备")
+                    hasLoggedNoDevice = true
+                }
             }
         }.addOnFailureListener { e ->
             isConnectedState.value = false
-            log("获取已连接设备失败: ${e.message}")
+            log("获取已连接设备失败：${e.message ?: "未知错误"}")
         }
     }
 
@@ -96,9 +103,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             }.addOnFailureListener { e ->
                                 val errorMessage = e.message.orEmpty()
                                 if (errorMessage.contains("fingerprint verify failed", ignoreCase = true)) {
-                                    log("权限申请失败：指纹校验未通过，请检查手机端包名和签名是否已在手环快应用端正确配置")
+                                    log("权限申请失败：指纹校验未通过，请检查手机应用和手环快应用签名是否一致")
+                                } else {
+                                    log("权限申请失败：$errorMessage")
                                 }
-                                log("申请权限失败: ${e.message}")
                             }
                     } else {
                         log("权限已授予")
@@ -106,9 +114,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }.addOnFailureListener { e ->
                     val errorMessage = e.message.orEmpty()
                     if (errorMessage.contains("fingerprint verify failed", ignoreCase = true)) {
-                        log("权限检查失败：指纹校验未通过，请检查手机端包名和签名是否已在手环快应用端正确配置")
+                        log("权限检查失败：指纹校验未通过，请检查手机应用和手环快应用签名是否一致")
+                    } else {
+                        log("权限检查失败：$errorMessage")
                     }
-                    log(errorMessage)
                 }
         }
     }
@@ -116,48 +125,52 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun onFilePicked(contentResolver: ContentResolver, uri: Uri) {
         pendingFileUri.value = uri
         selectedFileName.value = getFileName(contentResolver, uri)
-        log("已选择 ${selectedFileName.value}")
+        log("已选择文件 ${selectedFileName.value}")
     }
 
     fun confirmImport(context: Context) {
         val nodeId = nodeId
         if (nodeId == null) {
+            log("导入失败：未连接到设备")
             Toast.makeText(context, "未连接到设备", Toast.LENGTH_SHORT).show()
             return
         }
         val uri = pendingFileUri.value
         if (uri == null) {
+            log("导入失败：未选择配置文件")
             Toast.makeText(context, "请先选择配置文件", Toast.LENGTH_SHORT).show()
             return
         }
         val contentResolver = context.contentResolver
         val fileName = getFileName(contentResolver, uri)
         val jsonText: String? = if (fileName.endsWith(".wakeup_schedule")) {
-            log("开始转化")
+            log("检测到 wakeup_schedule 文件，开始转换为标准 JSON")
             val wakeupText = readTextFromUri(contentResolver, uri)
             if (wakeupText == null) {
+                log("读取配置文件失败：文件内容为空")
                 Toast.makeText(context, "读取配置文件失败", Toast.LENGTH_SHORT).show()
                 return
             }
             try {
                 val converted = convertWakeupScheduleToJson(wakeupText)
-                log("转化成功")
+                log("wakeup_schedule 转换成功")
                 converted
             } catch (e: Exception) {
-                log("转化失败: ${e.message}")
-                Toast.makeText(context, "转化失败: ${e.message}", Toast.LENGTH_LONG).show()
+                log("wakeup_schedule 转换失败：${e.message}")
+                Toast.makeText(context, "转换失败: ${e.message}", Toast.LENGTH_LONG).show()
                 return
             }
         } else {
             readTextFromUri(contentResolver, uri)
         }
         if (jsonText == null) {
+            log("读取配置文件失败：文件内容为空")
             Toast.makeText(context, "读取配置文件失败", Toast.LENGTH_SHORT).show()
             return
         }
         val validationError = validateScheduleConfig(jsonText)
         if (validationError != null) {
-            log("导入失败，缺失${extractMissingItem(validationError)}")
+            log("导入失败，缺失字段 ${extractMissingItem(validationError)}")
             Toast.makeText(context, validationError, Toast.LENGTH_LONG).show()
             return
         }
@@ -170,14 +183,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (nodeId != null) {
             messageApi.sendMessage(nodeId, message.toByteArray())
                 .addOnSuccessListener {
-                    log("导入成功")
+                    log("配置已发送到手环")
                     Toast.makeText(context, "配置发送成功", Toast.LENGTH_SHORT).show()
                 }
                 .addOnFailureListener { e ->
-                    log("导入失败")
+                    log("配置发送失败：${e.message ?: "未知错误"}")
                     Toast.makeText(context, "配置发送失败: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
         } else {
+            log("配置发送失败：未连接到设备")
             Toast.makeText(context, "未连接到设备", Toast.LENGTH_SHORT).show()
         }
     }
@@ -249,8 +263,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val courseObj = JSONObject()
             val courseId = c.optInt("id")
             courseObj.put("name", courseIdNameMap[courseId] ?: "")
-            courseObj.put("teacher", c.optString("teacher"))
-            courseObj.put("position", c.optString("room"))
+            if (c.has("teacher")) {
+                courseObj.put("teacher", c.optString("teacher"))
+            } else {
+                courseObj.put("teacher", "")
+            }
+            if (c.has("room")) {
+                courseObj.put("position", c.optString("room"))
+            } else {
+                courseObj.put("position", "")
+            }
             courseObj.put("day", c.optInt("day"))
             val startWeek = c.optInt("startWeek")
             val endWeek = c.optInt("endWeek")
@@ -296,7 +318,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         for (i in 0 until courses.length()) {
             val course = courses.optJSONObject(i) ?: return "courses[$i] 必须是对象"
             if (course.optString("name").isBlank()) return "courses[$i].name 必填"
-            if (course.optString("position").isBlank()) return "courses[$i].position 必填"
             if (!course.has("day")) return "courses[$i].day 必填"
             val weeks = course.optJSONArray("weeks") ?: return "courses[$i].weeks 必填"
             if (weeks.length() == 0) return "courses[$i].weeks 不能为空"

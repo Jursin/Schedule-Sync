@@ -34,8 +34,8 @@ android {
         applicationId "com.schedule.vela"
         minSdk = 27
         targetSdk = 36
-        versionCode 5
-        versionName '1.2.3'
+        versionCode 6
+        versionName '1.2.4'
 
         vectorDrawables {
             useSupportLibrary true
@@ -53,14 +53,6 @@ android {
                 throw new GradleException("缺少发布签名配置，请在 keystore.properties 中填写 storeFile/storePassword/keyAlias/keyPassword")
             }
             minifyEnabled true
-        }
-    }
-    splits {
-        abi {
-            enable true
-            reset()
-            include 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
-            universalApk false
         }
     }
     compileOptions {

@@ -19,9 +19,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Cancel
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.foundation.text.ClickableText
-import androidx.compose.material.icons.outlined.Help
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.withStyle
@@ -31,6 +33,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -39,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import com.schedule.vela.ui.theme.ShiGuangTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
@@ -108,7 +112,7 @@ fun MainScaffold(
                 },
                 actions = {
                     IconButton(onClick = onHelpClick) {
-                        Icon(Icons.Outlined.Help, contentDescription = "帮助")
+                        Icon(Icons.Outlined.HelpOutline, contentDescription = "帮助")
                     }
                     IconButton(onClick = onAboutClick) {
                         Icon(Icons.Outlined.Info, contentDescription = "关于")
@@ -141,9 +145,12 @@ fun MainContent(
     logText: String,
     selectedFileName: String,
     onPickFile: () -> Unit = {},
-    onConfirmImport: (context: android.content.Context) -> Unit = {},
+    onConfirmImport: (context: android.content.Context) -> Unit = {}
 ) {
     val context = LocalContext.current
+    @Suppress("DEPRECATION")
+    val clipboardManager = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
     val cardShape = RoundedCornerShape(20.dp)
     val cardElevation = 2.dp
     val cardBorder = BorderStroke(0.25.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.08f))
@@ -271,24 +278,40 @@ fun MainContent(
                 modifier = Modifier
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                Text(
-                    modifier = Modifier.padding(top = 8.dp, bottom = 8.dp),
-                    text = "日志",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "日志",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = {
+                        scope.launch {
+                            clipboardManager.setText(AnnotatedString(logText))
+                        }
+                    }) {
+                        Icon(Icons.Outlined.ContentCopy, contentDescription = "复制日志")
+                    }
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f, fill = true)
                         .verticalScroll(logScrollState)
                 ) {
-                    Text(
-                        text = logText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    androidx.compose.foundation.text.selection.SelectionContainer {
+                        Text(
+                            text = logText,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
             }
         }
