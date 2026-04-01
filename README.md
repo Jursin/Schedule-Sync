@@ -5,8 +5,6 @@
 ![Jetpack Compose](https://img.shields.io/badge/Jetpack_Compose-1.10.5-blue?style=flat&logo=jetpackcompose&logoColor=%234285F4&labelColor=%2302303A)
 
 ## 构建命令
-> 项目已配置 ABI 分包（`armeabi-v8a`、`arm64-v7a`、`x86`、`x86_64`）
-
 - 清空缓存
   ```powershell
   .\gradlew.bat clean
@@ -29,5 +27,5 @@
 ## 文档
 - [使用文档](https://blog.jursin.top/blog/60fsmnc1/)
 
-## 感谢
+## 致谢
 参考 [leset0ng/BandTOTP-Android](https://github.com/leset0ng/BandTOTP-Android)
