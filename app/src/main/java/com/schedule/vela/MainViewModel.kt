@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
+import org.yaml.snakeyaml.Yaml
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
@@ -143,25 +144,51 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         val contentResolver = context.contentResolver
         val fileName = getFileName(contentResolver, uri)
-        val jsonText: String? = if (fileName.endsWith(".wakeup_schedule")) {
-            log("检测到 wakeup_schedule 文件，开始转换为标准 JSON")
-            val wakeupText = readTextFromUri(contentResolver, uri)
-            if (wakeupText == null) {
-                log("读取配置文件失败：文件内容为空")
-                Toast.makeText(context, "读取配置文件失败", Toast.LENGTH_SHORT).show()
-                return
+        val jsonText: String? = when {
+            fileName.endsWith(".wakeup_schedule") -> {
+                log("检测到 wakeup_schedule 文件，开始转换为标准 JSON")
+                val wakeupText = readTextFromUri(contentResolver, uri)
+                if (wakeupText == null) {
+                    log("读取配置文件失败：文件内容为空")
+                    Toast.makeText(context, "读取配置文件失败", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                try {
+                    val converted = convertWakeupScheduleToJson(wakeupText)
+                    log("wakeup_schedule 转换成功")
+                    converted
+                } catch (e: Exception) {
+                    log("wakeup_schedule 转换失败：${e.message}")
+                    Toast.makeText(context, "转换失败: ${e.message}", Toast.LENGTH_LONG).show()
+                    return
+                }
             }
-            try {
-                val converted = convertWakeupScheduleToJson(wakeupText)
-                log("wakeup_schedule 转换成功")
-                converted
-            } catch (e: Exception) {
-                log("wakeup_schedule 转换失败：${e.message}")
-                Toast.makeText(context, "转换失败: ${e.message}", Toast.LENGTH_LONG).show()
-                return
+            fileName.endsWith(".yml") || fileName.endsWith(".yaml") -> {
+                log("检测到 CSES YAML 文件，开始转换为标准 JSON")
+                val yamlText = readTextFromUri(contentResolver, uri)
+                if (yamlText == null) {
+                    log("读取配置文件失败：文件内容为空")
+                    Toast.makeText(context, "读取配置文件失败", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                try {
+                    val converted = convertCsesYamlToJson(yamlText)
+                    log("YAML 转换成功")
+                    converted
+                } catch (e: Exception) {
+                    log("YAML 转换失败：${e.message}")
+                    val msg = e.message ?: "未知错误"
+                    if (msg.startsWith("行")) {
+                        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                    } else {
+                        Toast.makeText(context, "转换失败: $msg", Toast.LENGTH_LONG).show()
+                    }
+                    return
+                }
             }
-        } else {
-            readTextFromUri(contentResolver, uri)
+            else -> {
+                readTextFromUri(contentResolver, uri)
+            }
         }
         if (jsonText == null) {
             log("读取配置文件失败：文件内容为空")
@@ -216,6 +243,107 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         return if (stringBuilder.isEmpty()) null else stringBuilder.toString()
+    }
+
+    private fun convertCsesYamlToJson(yamlText: String): String {
+        val data = try {
+            val yaml = Yaml()
+            yaml.load<Any>(yamlText) as? Map<*, *>
+        } catch (_: ExceptionInInitializerError) {
+            throw Exception("YAML 解析器初始化失败（可能是发布版混淆导致的库兼容问题）")
+        } catch (_: LinkageError) {
+            throw Exception("YAML 解析器加载失败（类链接异常）")
+        } catch (e: Exception) {
+            throw Exception("YAML 解析失败: ${e.message}")
+        } ?: throw Exception("无效的 YAML 格式")
+
+        val subjects = data["subjects"] as? List<*>
+        val subjectMap = mutableMapOf<String, Map<String, String>>()
+        subjects?.forEach { sub ->
+            if (sub is Map<*, *>) {
+                val name = sub["name"]?.toString() ?: ""
+                val teacher = sub["teacher"]?.toString() ?: ""
+                val room = sub["room"]?.toString() ?: ""
+                subjectMap[name] = mapOf("teacher" to teacher, "room" to room)
+            }
+        }
+
+        val timetables = data["timetables"] as? List<*>
+        val allUniqueSlots = mutableListOf<Pair<String, String>>()
+        timetables?.forEach { table ->
+            if (table is Map<*, *>) {
+                val times = table["times"] as? List<*>
+                times?.forEach { time ->
+                    if (time is Map<*, *>) {
+                        val start = time["starttime"]?.toString() ?: ""
+                        val end = time["endtime"]?.toString() ?: ""
+                        if (start.isNotBlank() && end.isNotBlank()) {
+                            val pair = start to end
+                            if (!allUniqueSlots.contains(pair)) {
+                                allUniqueSlots.add(pair)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        allUniqueSlots.sortWith(compareBy({ it.first }, { it.second }))
+
+        val timeSlots = JSONArray()
+        allUniqueSlots.forEachIndexed { index, pair ->
+            val obj = JSONObject()
+            obj.put("number", index + 1)
+            obj.put("startTime", pair.first)
+            obj.put("endTime", pair.second)
+            timeSlots.put(obj)
+        }
+
+        val schedules = data["schedules"] as? List<*>
+        val courses = JSONArray()
+        schedules?.forEach { schedule ->
+            if (schedule is Map<*, *>) {
+                val day = (schedule["enable_day"] as? Number)?.toInt() ?: 1
+                val weeksType = schedule["weeks"]?.toString() ?: "all"
+
+                val classes = schedule["classes"] as? List<*>
+                classes?.forEach { cls ->
+                    if (cls is Map<*, *>) {
+                        val subject = cls["subject"]?.toString() ?: ""
+                        val start = cls["start_time"]?.toString() ?: ""
+                        val end = cls["end_time"]?.toString() ?: ""
+
+                        val startSection = allUniqueSlots.indexOfFirst { it.first == start } + 1
+                        val endSection = allUniqueSlots.indexOfLast { it.second == end } + 1
+
+                        if (startSection == 0 || endSection == 0) {
+                            throw Exception("课程 $subject 时间 [$start - $end] 在时间表中未找到")
+                        }
+
+                        val subInfo = subjectMap[subject]
+                        val course = JSONObject()
+                        course.put("name", subject)
+                        course.put("teacher", subInfo?.get("teacher") ?: "")
+                        course.put("position", subInfo?.get("room") ?: "")
+                        course.put("day", day)
+                        course.put("weekType", weeksType)
+                        course.put("isCustomTime", false)
+                        course.put("startSection", startSection)
+                        course.put("endSection", endSection)
+                        courses.put(course)
+                    }
+                }
+            }
+        }
+
+        val config = JSONObject()
+        config.put("semesterStartDate", "")
+        config.put("semesterTotalWeeks", "")
+
+        val result = JSONObject()
+        result.put("courses", courses)
+        result.put("timeSlots", timeSlots)
+        result.put("config", config)
+        return result.toString()
     }
 
     private fun convertWakeupScheduleToJson(wakeupText: String): String {
@@ -305,12 +433,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         val courses = root.optJSONArray("courses") ?: return "缺少必填项 courses"
         val timeSlots = root.optJSONArray("timeSlots") ?: return "缺少必填项 timeSlots"
-        val config = root.optJSONObject("config") ?: return "缺少必填项 config"
+        root.optJSONObject("config") ?: return "缺少必填项 config"
         validateCourses(courses)?.let { return it }
         validateTimeSlots(timeSlots)?.let { return it }
-        if (config.optString("semesterStartDate").isBlank()) {
-            return "config.semesterStartDate 必填"
-        }
         return null
     }
 
@@ -319,8 +444,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val course = courses.optJSONObject(i) ?: return "courses[$i] 必须是对象"
             if (course.optString("name").isBlank()) return "courses[$i].name 必填"
             if (!course.has("day")) return "courses[$i].day 必填"
-            val weeks = course.optJSONArray("weeks") ?: return "courses[$i].weeks 必填"
-            if (weeks.length() == 0) return "courses[$i].weeks 不能为空"
+            
+            if (!course.has("weeks") && !course.has("weekType")) return "courses[$i].weeks 或 weekType 必填"
+            if (course.has("weeks")) {
+                val weeks = course.optJSONArray("weeks") ?: return "courses[$i].weeks 必须是数组"
+                if (weeks.length() == 0) return "courses[$i].weeks 不能为空"
+            }
+            if (course.has("weekType")) {
+                if (course.optString("weekType").isBlank()) return "courses[$i].weekType 不能为空"
+            }
+
             val isCustomTime = course.optBoolean("isCustomTime", false)
             if (isCustomTime) {
                 if (course.optString("customStartTime").isBlank()) return "courses[$i].customStartTime 必填"

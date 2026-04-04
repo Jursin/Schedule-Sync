@@ -25,3 +25,12 @@
 -keep class com.schedule.vela.MainViewModel { *; }
 -keep class androidx.activity.ComponentActivity { *; }
 -keep class androidx.lifecycle.ViewModel { *; }
+
+# SnakeYAML 适配与修复 java.beans 缺失问题
+-dontwarn java.beans.**
+-dontwarn org.yaml.snakeyaml.**
+
+# 保留 SnakeYAML 全部类与包名，避免优化后 getPackage() 为 null 导致初始化崩溃
+-keep class org.yaml.snakeyaml.** { *; }
+-keepnames class org.yaml.snakeyaml.**
+-keeppackagenames org.yaml.snakeyaml
