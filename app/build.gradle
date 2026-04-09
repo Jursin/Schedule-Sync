@@ -20,25 +20,24 @@ android {
             if (hasCompleteReleaseSigning) {
                 keyAlias keystoreProperties['keyAlias']
                 keyPassword keystoreProperties['keyPassword']
-                // Resolve relative keystore path from the repository root.
                 def configuredStoreFile = keystoreProperties['storeFile']
                 storeFile new File(configuredStoreFile).isAbsolute() ? file(configuredStoreFile) : rootProject.file(configuredStoreFile)
                 storePassword keystoreProperties['storePassword']
             }
         }
     }
-    namespace 'com.schedule.vela'
+    namespace = 'com.schedule.vela'
     compileSdk = 36
 
     defaultConfig {
         applicationId "com.schedule.vela"
         minSdk = 27
         targetSdk = 36
-        versionCode 7
-        versionName '1.2.5'
+        versionCode 8
+        versionName '1.2.6'
 
         vectorDrawables {
-            useSupportLibrary true
+            useSupportLibrary = true
         }
     }
 
@@ -48,7 +47,7 @@ android {
         }
         release {
             if (hasCompleteReleaseSigning) {
-                signingConfig signingConfigs.getByName("release")
+                signingConfig = signingConfigs.getByName("release")
             } else {
                 throw new GradleException("缺少发布签名配置，请在 keystore.properties 中填写 storeFile/storePassword/keyAlias/keyPassword")
             }
@@ -61,7 +60,7 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
     buildFeatures {
-        compose true
+        compose = true
     }
 }
 
@@ -76,7 +75,7 @@ dependencies {
     implementation libs.androidx.compose.material.icons.extended
     implementation libs.androidx.ui.tooling.preview
     implementation libs.material3
-    implementation libs.androidx.compose.foundation// 确保使用 Material3 的最新版本
+    implementation libs.androidx.compose.foundation
     debugImplementation libs.androidx.ui.tooling
     debugImplementation libs.androidx.ui.test.manifest
     implementation files('libs/xms-wearable-lib_1.4_release.aar')

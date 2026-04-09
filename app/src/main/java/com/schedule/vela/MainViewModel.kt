@@ -201,7 +201,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             Toast.makeText(context, validationError, Toast.LENGTH_LONG).show()
             return
         }
-        sendMessageToWearable(context, jsonText)
+        val sanitizedPayload = sanitizeSchedulePayload(jsonText)
+        sendMessageToWearable(context, sanitizedPayload)
     }
 
     private fun sendMessageToWearable(context: Context, message: String) {
@@ -245,6 +246,137 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return if (stringBuilder.isEmpty()) null else stringBuilder.toString()
     }
 
+    private fun normalizeScheduleTime(rawTime: Any?): String? {
+        if (rawTime == null) return null
+
+        if (rawTime is Number) {
+            val totalSeconds = rawTime.toLong()
+            if (totalSeconds in 0..86399) {
+                val hour = (totalSeconds / 3600).toInt()
+                val minute = ((totalSeconds % 3600) / 60).toInt()
+                return "%02d:%02d".format(hour, minute)
+            }
+            return null
+        }
+
+        val text = rawTime.toString().trim()
+        if (text.isBlank()) return null
+
+        val parts = text.split(":")
+        if (parts.size !in 2..3) return null
+        val hour = parts[0].toIntOrNull() ?: return null
+        val minute = parts[1].toIntOrNull() ?: return null
+        if (hour !in 0..23 || minute !in 0..59) return null
+        return "%02d:%02d".format(hour, minute)
+    }
+
+    private fun timeToMinutes(time: String): Int {
+        val parts = time.split(":")
+        return parts[0].toInt() * 60 + parts[1].toInt()
+    }
+
+    private fun splitTopLevelJsonBlocks(rawText: String): List<String> {
+        val blocks = mutableListOf<String>()
+        var start = -1
+        var depth = 0
+        var inString = false
+        var escaped = false
+
+        for (i in rawText.indices) {
+            val ch = rawText[i]
+            if (escaped) {
+                escaped = false
+                continue
+            }
+            if (ch == '\\') {
+                escaped = true
+                continue
+            }
+            if (ch == '"') {
+                inString = !inString
+                continue
+            }
+            if (inString) continue
+
+            if (ch == '{' || ch == '[') {
+                if (depth == 0) start = i
+                depth++
+            } else if (ch == '}' || ch == ']') {
+                depth--
+                if (depth == 0 && start >= 0) {
+                    blocks.add(rawText.substring(start, i + 1).trim())
+                    start = -1
+                }
+            }
+        }
+        return blocks.filter { it.isNotBlank() }
+    }
+
+    private fun sanitizeSchedulePayload(jsonText: String): String {
+        val root = JSONObject(jsonText)
+        val sanitizedRoot = JSONObject()
+
+        val courses = root.optJSONArray("courses") ?: JSONArray()
+        val sanitizedCourses = JSONArray()
+        for (i in 0 until courses.length()) {
+            val course = courses.optJSONObject(i) ?: continue
+            val out = JSONObject()
+            out.put("name", course.optString("name"))
+            out.put("day", course.optInt("day"))
+            out.put("isCustomTime", course.optBoolean("isCustomTime", false))
+
+            if (course.has("teacher")) {
+                out.put("teacher", course.optString("teacher"))
+            }
+            if (course.has("position")) {
+                out.put("position", course.optString("position"))
+            }
+            if (course.has("weeks")) {
+                out.put("weeks", course.optJSONArray("weeks") ?: JSONArray())
+            }
+            if (course.has("weekType")) {
+                out.put("weekType", course.optString("weekType"))
+            }
+
+            val isCustomTime = course.optBoolean("isCustomTime", false)
+            if (isCustomTime) {
+                out.put("customStartTime", course.optString("customStartTime"))
+                out.put("customEndTime", course.optString("customEndTime"))
+            } else {
+                out.put("startSection", course.optInt("startSection"))
+                out.put("endSection", course.optInt("endSection"))
+            }
+
+            sanitizedCourses.put(out)
+        }
+        sanitizedRoot.put("courses", sanitizedCourses)
+
+        val timeSlots = root.optJSONArray("timeSlots") ?: JSONArray()
+        val sanitizedTimeSlots = JSONArray()
+        for (i in 0 until timeSlots.length()) {
+            val slot = timeSlots.optJSONObject(i) ?: continue
+            val out = JSONObject()
+            out.put("number", slot.optInt("number"))
+            out.put("startTime", slot.optString("startTime"))
+            out.put("endTime", slot.optString("endTime"))
+            sanitizedTimeSlots.put(out)
+        }
+        sanitizedRoot.put("timeSlots", sanitizedTimeSlots)
+
+        root.optJSONObject("config")?.let { config ->
+            val out = JSONObject()
+            if (config.has("semesterStartDate")) {
+                out.put("semesterStartDate", config.opt("semesterStartDate"))
+            }
+            if (config.has("semesterTotalWeeks")) {
+                out.put("semesterTotalWeeks", config.opt("semesterTotalWeeks"))
+            }
+            sanitizedRoot.put("config", out)
+        }
+
+        return sanitizedRoot.toString()
+    }
+
     private fun convertCsesYamlToJson(yamlText: String): String {
         val data = try {
             val yaml = Yaml()
@@ -268,39 +400,51 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        val timetables = data["timetables"] as? List<*>
-        val allUniqueSlots = mutableListOf<Pair<String, String>>()
-        timetables?.forEach { table ->
-            if (table is Map<*, *>) {
-                val times = table["times"] as? List<*>
-                times?.forEach { time ->
-                    if (time is Map<*, *>) {
-                        val start = time["starttime"]?.toString() ?: ""
-                        val end = time["endtime"]?.toString() ?: ""
-                        if (start.isNotBlank() && end.isNotBlank()) {
-                            val pair = start to end
-                            if (!allUniqueSlots.contains(pair)) {
-                                allUniqueSlots.add(pair)
-                            }
+        val schedules = data["schedules"] as? List<*>
+            ?: throw Exception("缺少必填项 schedules")
+
+        val allUniqueTimes = mutableListOf<String>()
+        schedules.forEach { schedule ->
+            if (schedule is Map<*, *>) {
+                val classes = schedule["classes"] as? List<*>
+                classes?.forEach { cls ->
+                    if (cls is Map<*, *>) {
+                        val start = normalizeScheduleTime(cls["start_time"])
+                            ?: throw Exception("课程 ${cls["subject"]?.toString().orEmpty()} 的 start_time 格式不合法")
+                        val end = normalizeScheduleTime(cls["end_time"])
+                            ?: throw Exception("课程 ${cls["subject"]?.toString().orEmpty()} 的 end_time 格式不合法")
+                        if (!allUniqueTimes.contains(start)) {
+                            allUniqueTimes.add(start)
+                        }
+                        if (!allUniqueTimes.contains(end)) {
+                            allUniqueTimes.add(end)
                         }
                     }
                 }
             }
         }
-        allUniqueSlots.sortWith(compareBy({ it.first }, { it.second }))
+
+        allUniqueTimes.sortBy { timeToMinutes(it) }
+        if (allUniqueTimes.size < 2) {
+            throw Exception("时间轴数据不足，无法生成 timeSlots")
+        }
+
+        val timeNumberMap = mutableMapOf<String, Int>()
+        allUniqueTimes.forEachIndexed { index, time ->
+            timeNumberMap[time] = index + 1
+        }
 
         val timeSlots = JSONArray()
-        allUniqueSlots.forEachIndexed { index, pair ->
+        for (i in 0 until allUniqueTimes.size - 1) {
             val obj = JSONObject()
-            obj.put("number", index + 1)
-            obj.put("startTime", pair.first)
-            obj.put("endTime", pair.second)
+            obj.put("number", i + 1)
+            obj.put("startTime", allUniqueTimes[i])
+            obj.put("endTime", allUniqueTimes[i + 1])
             timeSlots.put(obj)
         }
 
-        val schedules = data["schedules"] as? List<*>
         val courses = JSONArray()
-        schedules?.forEach { schedule ->
+        schedules.forEach { schedule ->
             if (schedule is Map<*, *>) {
                 val day = (schedule["enable_day"] as? Number)?.toInt() ?: 1
                 val weeksType = schedule["weeks"]?.toString() ?: "all"
@@ -309,14 +453,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 classes?.forEach { cls ->
                     if (cls is Map<*, *>) {
                         val subject = cls["subject"]?.toString() ?: ""
-                        val start = cls["start_time"]?.toString() ?: ""
-                        val end = cls["end_time"]?.toString() ?: ""
+                        val start = normalizeScheduleTime(cls["start_time"])
+                            ?: throw Exception("课程 $subject 的 start_time 格式不合法")
+                        val end = normalizeScheduleTime(cls["end_time"])
+                            ?: throw Exception("课程 $subject 的 end_time 格式不合法")
 
-                        val startSection = allUniqueSlots.indexOfFirst { it.first == start } + 1
-                        val endSection = allUniqueSlots.indexOfLast { it.second == end } + 1
-
-                        if (startSection == 0 || endSection == 0) {
-                            throw Exception("课程 $subject 时间 [$start - $end] 在时间表中未找到")
+                        val startNumber = timeNumberMap[start]
+                            ?: throw Exception("课程 $subject 时间 [$start - $end] 在时间轴中未找到")
+                        val endNumber = timeNumberMap[end]
+                            ?: throw Exception("课程 $subject 时间 [$start - $end] 在时间轴中未找到")
+                        if (endNumber <= startNumber) {
+                            throw Exception("课程 $subject 时间 [$start - $end] 起止顺序不合法")
                         }
 
                         val subInfo = subjectMap[subject]
@@ -327,8 +474,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         course.put("day", day)
                         course.put("weekType", weeksType)
                         course.put("isCustomTime", false)
-                        course.put("startSection", startSection)
-                        course.put("endSection", endSection)
+                        course.put("startSection", startNumber)
+                        course.put("endSection", endNumber - 1)
                         courses.put(course)
                     }
                 }
@@ -347,74 +494,108 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun convertWakeupScheduleToJson(wakeupText: String): String {
-        val segments = wakeupText.split("\n").filter { it.trim().isNotEmpty() }
-        val jsonObjects = mutableListOf<String>()
-        var buffer = StringBuilder()
-        for (line in segments) {
-            buffer.append(line)
-            if (line.trim().endsWith("}")) {
-                jsonObjects.add(buffer.toString())
-                buffer = StringBuilder()
-            } else if (line.trim().endsWith("]")) {
-                jsonObjects.add(buffer.toString())
-                buffer = StringBuilder()
-            } else {
-                buffer.append("\n")
+        val jsonBlocks = splitTopLevelJsonBlocks(wakeupText)
+        var timeSlotsArr: JSONArray? = null
+        var tableConfig: JSONObject? = null
+        var courseListArr: JSONArray? = null
+        var courseArr: JSONArray? = null
+
+        jsonBlocks.forEach { block ->
+            val trimmed = block.trim()
+            if (trimmed.startsWith("{")) {
+                val obj = JSONObject(trimmed)
+                if (obj.has("startDate") || obj.has("maxWeek")) {
+                    tableConfig = obj
+                }
+            } else if (trimmed.startsWith("[")) {
+                val arr = JSONArray(trimmed)
+                if (arr.length() == 0) {
+                    return@forEach
+                }
+                val first = arr.optJSONObject(0) ?: return@forEach
+
+                when {
+                    first.has("node") && first.has("startTime") && first.has("endTime") -> {
+                        timeSlotsArr = arr
+                    }
+                    first.has("id") && first.has("courseName") -> {
+                        courseListArr = arr
+                    }
+                    first.has("id") && first.has("day") && first.has("startWeek") && first.has("endWeek") -> {
+                        courseArr = arr
+                    }
+                }
             }
         }
-        if (buffer.isNotEmpty()) jsonObjects.add(buffer.toString())
-        if (jsonObjects.size < 5) throw Exception("wakeup_schedule 文件结构异常")
-        val timeSlotsArr = JSONArray(jsonObjects[1])
-        val tableConfig = JSONObject(jsonObjects[2])
-        val courseListArr = JSONArray(jsonObjects[3])
-        val courseArr = JSONArray(jsonObjects[4])
+
+        if (timeSlotsArr == null || tableConfig == null || courseListArr == null || courseArr == null) {
+            throw Exception("wakeup_schedule 文件结构异常，缺少必需数据块")
+        }
+
         val timeSlots = JSONArray()
         for (i in 0 until timeSlotsArr.length()) {
             val slot = timeSlotsArr.getJSONObject(i)
+            val startTime = normalizeScheduleTime(slot.opt("startTime")) ?: slot.optString("startTime")
+            val endTime = normalizeScheduleTime(slot.opt("endTime")) ?: slot.optString("endTime")
             val obj = JSONObject()
             obj.put("number", slot.optInt("node"))
-            obj.put("startTime", slot.optString("startTime"))
-            obj.put("endTime", slot.optString("endTime"))
+            obj.put("startTime", startTime)
+            obj.put("endTime", endTime)
             timeSlots.put(obj)
         }
+
         val config = JSONObject()
         config.put("semesterStartDate", tableConfig.optString("startDate"))
         config.put("semesterTotalWeeks", tableConfig.optInt("maxWeek"))
+
         val courseIdNameMap = mutableMapOf<Int, String>()
         for (i in 0 until courseListArr.length()) {
             val c = courseListArr.getJSONObject(i)
             courseIdNameMap[c.optInt("id")] = c.optString("courseName")
         }
+
         val courses = JSONArray()
         for (i in 0 until courseArr.length()) {
             val c = courseArr.getJSONObject(i)
             val courseObj = JSONObject()
             val courseId = c.optInt("id")
             courseObj.put("name", courseIdNameMap[courseId] ?: "")
-            if (c.has("teacher")) {
-                courseObj.put("teacher", c.optString("teacher"))
-            } else {
-                courseObj.put("teacher", "")
-            }
-            if (c.has("room")) {
-                courseObj.put("position", c.optString("room"))
-            } else {
-                courseObj.put("position", "")
-            }
+
+            courseObj.put("teacher", c.optString("teacher"))
+            courseObj.put("position", c.optString("room"))
             courseObj.put("day", c.optInt("day"))
+
             val startWeek = c.optInt("startWeek")
             val endWeek = c.optInt("endWeek")
+            val weekType = c.optInt("type", 0)
             val weeks = JSONArray()
-            for (w in startWeek..endWeek) weeks.put(w)
+            for (w in startWeek..endWeek) {
+                if (weekType == 1 && w % 2 == 0) continue
+                if (weekType == 2 && w % 2 != 0) continue
+                weeks.put(w)
+            }
+            if (weeks.length() == 0) {
+                throw Exception("课程 ${courseObj.optString("name")} 的周数范围无效")
+            }
             courseObj.put("weeks", weeks)
+
             val ownTime = c.optBoolean("ownTime", false)
             courseObj.put("isCustomTime", ownTime)
             if (ownTime) {
-                courseObj.put("customStartTime", c.optString("startTime"))
-                courseObj.put("customEndTime", c.optString("endTime"))
+                val customStart = normalizeScheduleTime(c.opt("startTime"))
+                    ?: throw Exception("课程 ${courseObj.optString("name")} 的 startTime 格式不合法")
+                val customEnd = normalizeScheduleTime(c.opt("endTime"))
+                    ?: throw Exception("课程 ${courseObj.optString("name")} 的 endTime 格式不合法")
+                courseObj.put("customStartTime", customStart)
+                courseObj.put("customEndTime", customEnd)
             } else {
-                courseObj.put("startSection", c.optInt("startNode"))
-                courseObj.put("endSection", c.optInt("startNode") + c.optInt("step") - 1)
+                val startNode = c.optInt("startNode")
+                val step = c.optInt("step")
+                if (startNode <= 0 || step <= 0) {
+                    throw Exception("课程 ${courseObj.optString("name")} 的 startNode/step 不合法")
+                }
+                courseObj.put("startSection", startNode)
+                courseObj.put("endSection", startNode + step - 1)
             }
             courses.put(courseObj)
         }
@@ -433,7 +614,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         val courses = root.optJSONArray("courses") ?: return "缺少必填项 courses"
         val timeSlots = root.optJSONArray("timeSlots") ?: return "缺少必填项 timeSlots"
-        root.optJSONObject("config") ?: return "缺少必填项 config"
         validateCourses(courses)?.let { return it }
         validateTimeSlots(timeSlots)?.let { return it }
         return null

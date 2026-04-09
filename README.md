@@ -25,7 +25,7 @@
 - [腕上课程表](https://github.com/Jursin/Schedule-Vela)
 
 ## 文档
-- [使用文档](https://blog.jursin.top/blog/60fsmnc1/)
+- [详细使用文档](https://blog.jursin.top/blog/60fsmnc1/)
 
 ## 致谢
 参考 [leset0ng/BandTOTP-Android](https://github.com/leset0ng/BandTOTP-Android)
