@@ -1,0 +1,76 @@
+package com.schedule.vela.ui.theme
+
+import android.os.Build
+import android.view.Window
+import android.view.WindowManager
+import androidx.activity.compose.LocalActivity
+import androidx.annotation.RequiresApi
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.DialogWindowProvider
+import java.util.function.Consumer
+
+// 给当前窗口（对话框或 Activity）加上窗口级背景模糊。Android 12+ 支持。
+@Composable
+fun WindowBlurEffect(useBlur: Boolean) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+
+    val window = findCurrentWindow() ?: return
+    val blurEnabledBySystem = isCrossWindowBlurEnabled()
+
+    DisposableEffect(window, useBlur, blurEnabledBySystem) {
+        if (useBlur && blurEnabledBySystem) {
+            window.applyBlur(30)
+        } else {
+            window.clearBlur()
+        }
+        onDispose { window.clearBlur() }
+    }
+}
+
+@Composable
+private fun findCurrentWindow(): Window? {
+    val view = LocalView.current
+    val dialogWindow = (view.parent as? DialogWindowProvider)?.window
+    if (dialogWindow != null) return dialogWindow
+    return LocalActivity.current?.window
+}
+
+@RequiresApi(Build.VERSION_CODES.S)
+@Composable
+private fun isCrossWindowBlurEnabled(): Boolean {
+    val context = LocalContext.current
+    val wm = remember(context) { context.getSystemService(WindowManager::class.java) }
+    var isEnabled by remember { mutableStateOf(wm.isCrossWindowBlurEnabled) }
+
+    DisposableEffect(wm) {
+        val listener = Consumer<Boolean> { enabled -> isEnabled = enabled }
+        wm.addCrossWindowBlurEnabledListener(listener)
+        onDispose { wm.removeCrossWindowBlurEnabledListener(listener) }
+    }
+    return isEnabled
+}
+
+@RequiresApi(Build.VERSION_CODES.S)
+private fun Window.applyBlur(radius: Int) {
+    addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+    attributes =
+        attributes.apply {
+            blurBehindRadius = radius.coerceIn(0, 150)
+        }
+}
+
+@RequiresApi(Build.VERSION_CODES.S)
+private fun Window.clearBlur() {
+    clearFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+    attributes =
+        attributes.apply {
+            blurBehindRadius = 0
+        }
+}
