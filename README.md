@@ -11,7 +11,35 @@
 
 腕上课程表同步器应用。
 
-## 📦 构建
+## 🖼️ 截图
+
+<table>
+  <tr>
+    <td><picture><source media="(prefers-color-scheme: dark)" srcset="docs/dark/1.jpg"><img alt="" src="docs/light/1.jpg"></picture></td>
+    <td><picture><source media="(prefers-color-scheme: dark)" srcset="docs/dark/2.jpg"><img alt="" src="docs/light/2.jpg"></picture></td>
+  </tr>
+</table>
+
+## ✨ 功能特性
+
+- 显示设备连接状态
+- 调用系统文件选择器选择文件和导入
+- 实时显示日志
+- **外观设置：**
+  - 浅色/深色主题模式
+  - 应用模糊效果（Android 13+）
+  - 预测性返回动画（Android 13+）
+  - 自定义颜色
+    - 基于系统壁纸的动态取色（Android 12+）
+    - 自定义调色板
+  - 悬浮底栏
+- **更新设置:**
+  - 从 GitHub 检查最新版本
+  - 可启用启动时检查更新
+  - 支持设置 GitHub 加速地址
+  - 后台下载时通知栏显示进度
+
+## 🛠️ 构建
 
 - Android Debug: `./gradlew :app:assembleDebug`
 - Android Release: `./gradlew :app:assembleRelease`
@@ -25,7 +53,7 @@
 
 在 `local.properties` 填写签名配置
 
-## 相关仓库
+## 📦 相关仓库
 - 腕上课程表：[Jursin/Schedule-Vela](https://github.com/Jursin/Schedule-Vela)
 
 ## 📚 开放源代码许可

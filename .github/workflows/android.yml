@@ -9,6 +9,8 @@ on:
       - 'v*'
     paths-ignore:
       - '.github/workflows/**'
+      - 'app/build.gradle.kts'
+      - 'README.md'
   workflow_dispatch:
 
 permissions:
