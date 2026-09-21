@@ -1,5 +1,8 @@
 package com.schedule.vela.ui.page
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -22,7 +25,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,20 +32,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathParser
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.schedule.vela.ApplicationContext
 import com.schedule.vela.MainViewModel
+import com.schedule.vela.showToast
 import com.schedule.vela.ui.component.BlurredTopAppBar
 import com.schedule.vela.ui.component.PageScrollColumn
 import com.schedule.vela.ui.theme.ThemeMode
 import com.schedule.vela.ui.theme.rememberAppBlurBackdrop
-import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -173,10 +174,6 @@ fun HomePage(
             val logScrollState = rememberScrollState()
             var lastLogText by remember { mutableStateOf("") }
             var lastMaxValue by remember { mutableIntStateOf(0) }
-            val scope = rememberCoroutineScope()
-
-            @Suppress("DEPRECATION")
-            val clipboardManager = LocalClipboardManager.current
 
             LaunchedEffect(logText) {
                 val isContentGrew = logScrollState.maxValue > lastMaxValue
@@ -204,11 +201,7 @@ fun HomePage(
                             color = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.weight(1f),
                         )
-                        IconButton(onClick = {
-                            scope.launch {
-                                clipboardManager.setText(AnnotatedString(logText))
-                            }
-                        }) {
+                        IconButton(onClick = { copyLogToClipboard(logText) }) {
                             Icon(
                                 imageVector = MiuixIcons.Copy,
                                 contentDescription = "复制日志",
@@ -324,4 +317,17 @@ private fun ConnectionStatusCard(
             }
         }
     }
+}
+
+// 写入系统剪贴板并提示结果。
+private fun copyLogToClipboard(text: String) {
+    val copied =
+        try {
+            val manager = ApplicationContext.instance.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            manager.setPrimaryClip(ClipData.newPlainText("Schedule-Sync", text))
+            true
+        } catch (_: Exception) {
+            false
+        }
+    showToast(if (copied) "复制成功" else "复制失败")
 }

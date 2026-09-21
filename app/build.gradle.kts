@@ -30,8 +30,8 @@ android {
         applicationId = "com.schedule.vela"
         minSdk = 26
         targetSdk = 37
-        versionCode = 9
-        versionName = "2.0.0"
+        versionCode = 10
+        versionName = "2.0.1"
     }
 
     androidResources {

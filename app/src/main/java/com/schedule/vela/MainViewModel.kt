@@ -5,6 +5,7 @@ import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -67,7 +68,7 @@ class MainViewModel(
             scope = viewModelScope,
             onToast = { showToast(it) },
             onDismissToast = { dismissToast() },
-            onLogError = { scope, e -> log("$scope: ${e.message}") },
+            onLogError = { scope, e -> Log.w("ScheduleSyncUpdate", "$scope: ${e.message}") },
         )
 
     init {

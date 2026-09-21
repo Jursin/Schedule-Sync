@@ -9,7 +9,7 @@
 ![](https://img.shields.io/github/v/release/Jursin/Schedule-Sync?include_prereleases&logo=github)
 [![](https://img.shields.io/badge/爱发电-赞助我-946CE6?logo=afdian)](https://afdian.com/a/jursin)
 
-腕上课程表同步器应用。
+腕上课程表同步器应用，支持解析并导入拾光课程表、WakeUp课程表、星链课表和 CSES 的配置文件。
 
 ## 🖼️ 截图
 
