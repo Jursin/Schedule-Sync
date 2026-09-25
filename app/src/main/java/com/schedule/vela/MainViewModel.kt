@@ -941,14 +941,15 @@ class MainViewModel(
                 ThemeMode.entries.firstOrNull { it.name == storage.getString(StorageKeys.THEME_MODE) }
                     ?: ThemeMode.System
             customColorState = storage.getBoolean(StorageKeys.CUSTOM_COLOR, false)
-            dynamicColorState = storage.getBoolean(StorageKeys.DYNAMIC_COLOR, true)
+            // 平台不支持的设置项强制为默认值（动态取色需 Android 12+，预测性返回需 Android 13+）
+            dynamicColorState = storage.getBoolean(StorageKeys.DYNAMIC_COLOR, true) && supportsDynamicColor
             paletteStyleState =
                 PaletteStyle.entries.firstOrNull { it.name == storage.getString(StorageKeys.PALETTE_STYLE) }
                     ?: PaletteStyle.TonalSpot
             seedColorState = storage.getInt(StorageKeys.SEED_COLOR, DEFAULT_SEED_COLOR)
             floatingNavState = storage.getBoolean(StorageKeys.FLOATING_NAV, false)
             appBlurState = storage.getBoolean(StorageKeys.APP_BLUR, true)
-            predictiveBackEnabledState = storage.getBoolean(StorageKeys.PREDICTIVE_BACK, true)
+            predictiveBackEnabledState = storage.getBoolean(StorageKeys.PREDICTIVE_BACK, true) && supportsPredictiveBack
         } catch (e: Exception) {
             log("loadSettings: ${e.message}")
         }

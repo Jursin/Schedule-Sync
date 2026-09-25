@@ -33,6 +33,8 @@ import androidx.core.net.toUri
 import com.schedule.vela.MainViewModel
 import com.schedule.vela.getAppVersion
 import com.schedule.vela.getAppVersionCode
+import com.schedule.vela.supportsDynamicColor
+import com.schedule.vela.supportsPredictiveBack
 import com.schedule.vela.ui.component.BlurredTopAppBar
 import com.schedule.vela.ui.component.PageScrollColumn
 import com.schedule.vela.ui.component.SwitchPreference
@@ -83,7 +85,7 @@ fun SettingsPage(
             topPadding = 4.dp,
             bottomPadding = bottomPadding,
         ) {
-            SmallTitle(text = "外观设置", insideMargin = PaddingValues(12.dp, 8.dp))
+            SmallTitle(text = "外观设置", insideMargin = PaddingValues(16.dp, 8.dp))
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column {
                     OverlayDropdownPreference(
@@ -109,29 +111,33 @@ fun SettingsPage(
                             onCheckedChange = { viewModel.setAppBlur(it) },
                         )
                     }
-                    SwitchPreference(
-                        title = "预测性返回动画",
-                        summary = "返回滑动前提前预览即将跳转至的界面",
-                        checked = viewModel.predictiveBackEnabled,
-                        onCheckedChange = { viewModel.setPredictiveBackEnabled(it) },
-                    )
+                    if (supportsPredictiveBack) {
+                        SwitchPreference(
+                            title = "预测性返回动画",
+                            summary = "返回滑动前提前预览即将跳转至的界面",
+                            checked = viewModel.predictiveBackEnabled,
+                            onCheckedChange = { viewModel.setPredictiveBackEnabled(it) },
+                        )
+                    }
                     SwitchPreference(
                         title = "自定义颜色",
                         summary = "自定义应用主题配色方案",
                         checked = viewModel.customColor,
                         onCheckedChange = { viewModel.setCustomColor(it) },
                     )
-                    AnimatedVisibility(
-                        visible = viewModel.customColor,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically(),
-                    ) {
-                        SwitchPreference(
-                            title = "动态取色",
-                            summary = "基于系统壁纸颜色生成配色方案",
-                            checked = viewModel.dynamicColor,
-                            onCheckedChange = { viewModel.setDynamicColor(it) },
-                        )
+                    if (supportsDynamicColor) {
+                        AnimatedVisibility(
+                            visible = viewModel.customColor,
+                            enter = fadeIn() + expandVertically(),
+                            exit = fadeOut() + shrinkVertically(),
+                        ) {
+                            SwitchPreference(
+                                title = "动态取色",
+                                summary = "基于系统壁纸颜色生成配色方案",
+                                checked = viewModel.dynamicColor,
+                                onCheckedChange = { viewModel.setDynamicColor(it) },
+                            )
+                        }
                     }
                     AnimatedVisibility(
                         visible = viewModel.customColor,
@@ -167,7 +173,7 @@ fun SettingsPage(
                 }
             }
 
-            SmallTitle(text = "更新设置", insideMargin = PaddingValues(12.dp, 8.dp))
+            SmallTitle(text = "更新设置", insideMargin = PaddingValues(16.dp, 8.dp))
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column {
                     ArrowPreference(
@@ -189,7 +195,7 @@ fun SettingsPage(
                 }
             }
 
-            SmallTitle(text = "关于", insideMargin = PaddingValues(12.dp, 8.dp))
+            SmallTitle(text = "关于", insideMargin = PaddingValues(16.dp, 8.dp))
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column {
                     BasicComponent(

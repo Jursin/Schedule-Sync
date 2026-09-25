@@ -20,6 +20,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
 
 // 通用确认对话框：[content] 用于进度、输入框等自定义正文，未传 [message] 时正文即由它提供。
+// [cancelText] 为 null 时只显示确认按钮。
 @Composable
 fun ConfirmDialog(
     title: String,
@@ -27,7 +28,7 @@ fun ConfirmDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
     confirmText: String = "确定",
-    cancelText: String = "取消",
+    cancelText: String? = "取消",
     destructive: Boolean = false,
     message: String? = null,
     content: (@Composable ColumnScope.() -> Unit)? = null,
@@ -47,11 +48,13 @@ fun ConfirmDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    TextButton(
-                        modifier = Modifier.weight(1f),
-                        onClick = { dismiss?.invoke() },
-                        text = cancelText,
-                    )
+                    if (cancelText != null) {
+                        TextButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = { dismiss?.invoke() },
+                            text = cancelText,
+                        )
+                    }
                     TextButton(
                         modifier = Modifier.weight(1f),
                         onClick = onConfirm,
