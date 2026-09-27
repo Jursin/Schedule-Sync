@@ -84,9 +84,9 @@ fun LicensePage(
                     .nestedScroll(scrollBehavior.nestedScrollConnection),
             contentPadding =
                 PaddingValues(
-                    start = 16.dp,
+                    start = 12.dp,
                     top = paddingValues.calculateTopPadding() + 8.dp,
-                    end = 16.dp,
+                    end = 12.dp,
                     bottom = 16.dp,
                 ),
             verticalArrangement = Arrangement.spacedBy(12.dp),

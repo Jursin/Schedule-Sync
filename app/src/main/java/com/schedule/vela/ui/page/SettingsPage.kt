@@ -85,7 +85,7 @@ fun SettingsPage(
             topPadding = 4.dp,
             bottomPadding = bottomPadding,
         ) {
-            SmallTitle(text = "外观设置", insideMargin = PaddingValues(16.dp, 8.dp))
+            SmallTitle(text = "外观设置", insideMargin = PaddingValues(16.dp, 8.dp, 16.dp, 0.dp))
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column {
                     OverlayDropdownPreference(
@@ -173,7 +173,7 @@ fun SettingsPage(
                 }
             }
 
-            SmallTitle(text = "更新设置", insideMargin = PaddingValues(16.dp, 8.dp))
+            SmallTitle(text = "更新设置", insideMargin = PaddingValues(16.dp, 8.dp, 16.dp, 0.dp))
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column {
                     ArrowPreference(
@@ -195,7 +195,7 @@ fun SettingsPage(
                 }
             }
 
-            SmallTitle(text = "关于", insideMargin = PaddingValues(16.dp, 8.dp))
+            SmallTitle(text = "关于", insideMargin = PaddingValues(16.dp, 8.dp, 16.dp, 0.dp))
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column {
                     BasicComponent(
