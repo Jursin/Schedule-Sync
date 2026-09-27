@@ -27,6 +27,7 @@ import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 import org.yaml.snakeyaml.Yaml
+import top.yukonga.miuix.kmp.shader.isRuntimeShaderSupported
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import kotlin.time.Duration.Companion.milliseconds
@@ -941,14 +942,14 @@ class MainViewModel(
                 ThemeMode.entries.firstOrNull { it.name == storage.getString(StorageKeys.THEME_MODE) }
                     ?: ThemeMode.System
             customColorState = storage.getBoolean(StorageKeys.CUSTOM_COLOR, false)
-            // 平台不支持的设置项强制为默认值（动态取色需 Android 12+，预测性返回需 Android 13+）
+            // 不支持的设置项隐藏并强制关闭，升级变支持后按存储/默认值恢复
             dynamicColorState = storage.getBoolean(StorageKeys.DYNAMIC_COLOR, true) && supportsDynamicColor
             paletteStyleState =
                 PaletteStyle.entries.firstOrNull { it.name == storage.getString(StorageKeys.PALETTE_STYLE) }
                     ?: PaletteStyle.TonalSpot
             seedColorState = storage.getInt(StorageKeys.SEED_COLOR, DEFAULT_SEED_COLOR)
             floatingNavState = storage.getBoolean(StorageKeys.FLOATING_NAV, false)
-            appBlurState = storage.getBoolean(StorageKeys.APP_BLUR, true)
+            appBlurState = storage.getBoolean(StorageKeys.APP_BLUR, true) && isRuntimeShaderSupported()
             predictiveBackEnabledState = storage.getBoolean(StorageKeys.PREDICTIVE_BACK, true) && supportsPredictiveBack
         } catch (e: Exception) {
             log("loadSettings: ${e.message}")
