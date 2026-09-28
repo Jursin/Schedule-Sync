@@ -2,7 +2,6 @@ package com.schedule.vela.ui.component
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,56 +14,47 @@ import com.schedule.vela.ui.theme.WindowBlurEffect
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.theme.LocalDismissState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
 
-// 通用确认对话框：[content] 用于进度、输入框等自定义正文，未传 [message] 时正文即由它提供
-// [cancelText] 为 null 时只显示确认按钮
+// 启动次数达标后的赞助提示，[onDismiss] 表示未作选择（继续计数）
 @Composable
-fun ConfirmDialog(
-    title: String,
+fun SponsorDialog(
     appBlur: Boolean,
+    message: String,
     onDismiss: () -> Unit,
-    onConfirm: () -> Unit,
-    confirmText: String = "确定",
-    cancelText: String? = "取消",
-    destructive: Boolean = false,
-    message: String? = null,
-    content: (@Composable ColumnScope.() -> Unit)? = null,
+    onNeverRemind: () -> Unit,
+    onSponsor: () -> Unit,
 ) {
     WindowDialog(
         show = true,
         onDismissRequest = onDismiss,
-        title = title,
+        title = "赞助提示",
         content = {
             WindowBlurEffect(useBlur = appBlur)
-            val dismiss = LocalDismissState.current
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                if (message != null) Text(text = message)
-                content?.invoke(this)
+                Text(text = message)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "作者：Jursin",
+                    style = MiuixTheme.textStyles.body2,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                )
                 Spacer(modifier = Modifier.height(24.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    if (cancelText != null) {
-                        TextButton(
-                            modifier = Modifier.weight(1f),
-                            onClick = { dismiss?.invoke() },
-                            text = cancelText,
-                        )
-                    }
                     TextButton(
                         modifier = Modifier.weight(1f),
-                        onClick = onConfirm,
-                        text = confirmText,
-                        colors =
-                            if (destructive) {
-                                ButtonDefaults.textButtonColors(textColor = MiuixTheme.colorScheme.error)
-                            } else {
-                                ButtonDefaults.textButtonColorsPrimary()
-                            },
+                        onClick = onNeverRemind,
+                        text = "不再提醒",
+                    )
+                    TextButton(
+                        modifier = Modifier.weight(1f),
+                        onClick = onSponsor,
+                        text = "立即赞助",
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
                     )
                 }
             }

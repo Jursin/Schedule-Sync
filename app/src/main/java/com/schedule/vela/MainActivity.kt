@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import com.schedule.vela.ui.component.SponsorDialog
 import com.schedule.vela.ui.navigation.MainScaffold
 import com.schedule.vela.ui.navigation.Page
 import com.schedule.vela.ui.page.HomePage
@@ -56,6 +57,17 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+
+                // 启动次数达标后的赞助提示
+                if (viewModel.sponsorPromptCount > 0) {
+                    SponsorDialog(
+                        appBlur = viewModel.appBlur,
+                        message = "您已启动应用 ${viewModel.sponsorPromptCount} 次了，考虑赞助支持一下吗？",
+                        onDismiss = { viewModel.dismissSponsor() },
+                        onNeverRemind = { viewModel.neverRemindSponsor() },
+                        onSponsor = { viewModel.openSponsor() },
+                    )
+                }
             }
         }
         viewModel.startDeviceQuery()
@@ -70,6 +82,11 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         viewModel.onAppResumed()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        viewModel.onAppStopped()
     }
 
     override fun onDestroy() {

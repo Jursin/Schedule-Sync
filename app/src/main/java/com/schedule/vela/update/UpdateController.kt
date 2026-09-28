@@ -11,7 +11,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
-// 应用内更新：检查、下载、安装以及相关偏好设置的状态机。
+// 应用内更新：检查、下载、安装以及相关偏好设置的状态机
 class UpdateController(
     private val scope: CoroutineScope,
     private val onToast: (String) -> Unit,

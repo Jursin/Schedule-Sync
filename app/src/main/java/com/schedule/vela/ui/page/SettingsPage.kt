@@ -223,7 +223,7 @@ fun SettingsPage(
                     ArrowPreference(
                         title = "赞助支持",
                         summary = "在爱发电赞助我",
-                        onClick = { uriHandler.openUri("https://afdian.com/@Jursin") },
+                        onClick = { viewModel.openSponsor() },
                     )
                 }
             }

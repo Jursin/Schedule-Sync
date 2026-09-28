@@ -319,7 +319,7 @@ private fun ConnectionStatusCard(
     }
 }
 
-// 写入系统剪贴板并提示结果。
+// 写入系统剪贴板并提示结果
 private fun copyLogToClipboard(text: String) {
     val copied =
         try {

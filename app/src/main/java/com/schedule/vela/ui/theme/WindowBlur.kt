@@ -16,7 +16,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.DialogWindowProvider
 import java.util.function.Consumer
 
-// 给当前窗口（对话框或 Activity）加上窗口级背景模糊。Android 12+ 支持。
+// 给当前窗口（对话框或 Activity）加上窗口级背景模糊。Android 12+ 支持
 @Composable
 fun WindowBlurEffect(useBlur: Boolean) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return

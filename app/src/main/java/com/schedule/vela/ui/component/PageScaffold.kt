@@ -26,7 +26,7 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
-// 毛玻璃顶部栏，可选返回按钮。
+// 毛玻璃顶部栏，可选返回按钮
 @Composable
 fun BlurredTopAppBar(
     title: String,
@@ -51,7 +51,7 @@ fun BlurredTopAppBar(
     )
 }
 
-// 页面内容列：毛玻璃、滚动手势与统一内边距。
+// 页面内容列：毛玻璃、滚动手势与统一内边距
 @Composable
 fun PageScrollColumn(
     blurBackdrop: LayerBackdrop?,

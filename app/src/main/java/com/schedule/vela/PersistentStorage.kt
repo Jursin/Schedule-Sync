@@ -54,6 +54,8 @@ object StorageKeys {
     const val THEME_MODE = "setting_theme_mode"
     const val GITHUB_PROXY = "setting_github_proxy"
     const val CHECK_UPDATE_ON_START = "setting_check_update_on_start"
+    const val LAUNCH_COUNT = "stats_launch_count"
+    const val SPONSOR_PROMPT_STOPPED = "setting_sponsor_prompt_stopped"
 }
 
 object AppStorage {

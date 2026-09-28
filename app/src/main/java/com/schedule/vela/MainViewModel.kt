@@ -34,6 +34,15 @@ import kotlin.time.Duration.Companion.milliseconds
 
 private const val DEFAULT_SEED_COLOR = 0xFF6750A4.toInt()
 
+// 赞助提示触发的启动次数：第 21/51/101 次启动时弹出，101 次后不再弹
+private val SPONSOR_PROMPT_AT = setOf(21, 51, 101)
+
+// 达到该启动次数后不再计数与提示
+private const val MAX_LAUNCH_COUNT = 101
+
+// 判断“确实跳到外部应用并返回”的最短离开时长
+private const val SPONSOR_RETURN_THRESHOLD_MS = 1500L
+
 class MainViewModel(
     application: Application,
 ) : AndroidViewModel(application) {
@@ -63,6 +72,14 @@ class MainViewModel(
     private var predictiveBackEnabledState by mutableStateOf(true)
     val predictiveBackEnabled: Boolean get() = predictiveBackEnabledState
 
+    // 赞助提示：>0 表示弹窗展示中，值为展示用的已启动次数
+    var sponsorPromptCount by mutableIntStateOf(0)
+        private set
+
+    private var sponsorPending = false
+    private var sponsorClickedAt = 0L
+    private var backgroundedAt = 0L
+
     // 应用更新（检查/下载/安装）
     private val update =
         UpdateController(
@@ -75,6 +92,7 @@ class MainViewModel(
     init {
         loadSettings()
         update.loadSettings()
+        registerLaunch()
         viewModelScope.launch {
             delay(1500L.milliseconds)
             if (update.checkUpdateOnStart) update.checkForUpdate(silent = true)
@@ -1021,5 +1039,54 @@ class MainViewModel(
 
     fun setCheckUpdateOnStartEnabled(enabled: Boolean) = update.setCheckUpdateOnStartEnabled(enabled)
 
-    fun onAppResumed() = update.onAppResumed()
+    fun onAppResumed() {
+        update.onAppResumed()
+        handleSponsorReturn()
+    }
+
+    // 记录进入后台的时间，用于判断“跳到外部应用后又返回”
+    fun onAppStopped() {
+        backgroundedAt = System.currentTimeMillis()
+    }
+
+    // 启动次数统计与赞助提示：第 21/51/101 次启动弹出，达上限后不再计数
+    private fun registerLaunch() {
+        val storage = AppStorage.instance
+        if (storage.getBoolean(StorageKeys.SPONSOR_PROMPT_STOPPED, false)) return
+        val count = storage.getInt(StorageKeys.LAUNCH_COUNT, 0)
+        if (count >= MAX_LAUNCH_COUNT) return
+        val next = count + 1
+        storage.saveInt(StorageKeys.LAUNCH_COUNT, next)
+        if (next in SPONSOR_PROMPT_AT) sponsorPromptCount = next - 1
+    }
+
+    // 关闭赞助提示但不作选择：继续计数
+    fun dismissSponsor() {
+        sponsorPromptCount = 0
+    }
+
+    // 不再提醒：停止计数
+    fun neverRemindSponsor() {
+        sponsorPromptCount = 0
+        AppStorage.instance.saveBoolean(StorageKeys.SPONSOR_PROMPT_STOPPED, true)
+    }
+
+    // 立即赞助：打开链接并记录待确认状态
+    fun openSponsor() {
+        sponsorPromptCount = 0
+        if (openSponsorPage()) {
+            sponsorPending = true
+            sponsorClickedAt = System.currentTimeMillis()
+        }
+    }
+
+    // 从外部应用返回：确实跳出过则感谢并停止计数，仅弹出选择器未跳转则继续计数
+    private fun handleSponsorReturn() {
+        if (!sponsorPending) return
+        sponsorPending = false
+        if (backgroundedAt >= sponsorClickedAt && System.currentTimeMillis() - backgroundedAt >= SPONSOR_RETURN_THRESHOLD_MS) {
+            AppStorage.instance.saveBoolean(StorageKeys.SPONSOR_PROMPT_STOPPED, true)
+            showToast("感谢支持")
+        }
+    }
 }

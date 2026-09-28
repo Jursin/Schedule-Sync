@@ -50,13 +50,13 @@ internal fun ensureUpdateChannel(context: Context) {
     }
 }
 
-// 本机 ABI 列表，按优先级排序。
+// 本机 ABI 列表，按优先级排序
 internal fun currentAbis(): List<String> = Build.SUPPORTED_ABIS.toList()
 
-// 是否已授权本应用安装未知来源应用。
+// 是否已授权本应用安装未知来源应用
 internal fun canInstallPackages(): Boolean = ApplicationContext.instance.packageManager.canRequestPackageInstalls()
 
-// 跳转到系统的“安装未知应用”授权页面。
+// 跳转到系统的“安装未知应用”授权页面
 internal fun openInstallPermissionSettings() {
     val context = ApplicationContext.instance
     val packageUri = "package:${context.packageName}".toUri()
@@ -76,7 +76,7 @@ internal fun openInstallPermissionSettings() {
     }
 }
 
-// 调用系统安装器安装指定路径的安装包。返回是否成功发起安装。
+// 调用系统安装器安装指定路径的安装包，返回是否成功发起安装
 internal fun installApk(filePath: String): Boolean =
     try {
         val context = ApplicationContext.instance
@@ -101,7 +101,7 @@ internal fun apkTargetFile(): File {
     return File(dir, "schedule-sync-update.apk")
 }
 
-// 下载安装包到本地临时文件，通过 [onProgress] 回调 0f..1f 的进度，返回文件路径。
+// 下载安装包到本地临时文件，通过 [onProgress] 回调 0f..1f 的进度，返回文件路径
 internal suspend fun downloadApkToFile(
     url: String,
     onProgress: (Float) -> Unit,
@@ -151,7 +151,7 @@ internal suspend fun downloadApkToFile(
         target.absolutePath
     }
 
-// 删除已下载的安装包文件。
+// 删除已下载的安装包文件
 internal fun deleteDownloadedApk() {
     try {
         apkTargetFile().takeIf { it.exists() }?.delete()
@@ -160,7 +160,7 @@ internal fun deleteDownloadedApk() {
     }
 }
 
-// 若已下载的安装包与期望一致（优先比对 sha256，其次比对文件大小）则返回其路径，否则返回 null。
+// 若已下载的安装包与期望一致（优先比对 sha256，其次比对文件大小）则返回其路径，否则返回 null
 internal fun downloadedApkPathIfValid(
     sha256: String?,
     size: Long,
@@ -196,11 +196,11 @@ private fun File.sha256Hex(): String? =
 
 private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 9001
 
-// 等待权限弹窗结果（无论是否授权）以恢复挂起的调用。
+// 等待权限弹窗结果（无论是否授权）以恢复挂起的调用
 @Volatile
 private var notificationPermissionContinuation: CancellableContinuation<Unit>? = null
 
-// 请求通知权限（Android 13+ 需要），挂起直到权限弹窗关闭（无论是否授权）。
+// 请求通知权限（Android 13+ 需要），挂起直到权限弹窗关闭（无论是否授权）
 internal suspend fun requestNotificationPermission() {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
     val activity = ActivityHolder.current ?: return
@@ -223,7 +223,7 @@ internal suspend fun requestNotificationPermission() {
     }
 }
 
-// 由 MainActivity.onRequestPermissionsResult 调用，唤醒等待中的请求。
+// 由 MainActivity.onRequestPermissionsResult 调用，唤醒等待中的请求
 fun onNotificationPermissionResult(requestCode: Int) {
     if (requestCode != NOTIFICATION_PERMISSION_REQUEST_CODE) return
     val continuation = notificationPermissionContinuation ?: return
@@ -231,7 +231,7 @@ fun onNotificationPermissionResult(requestCode: Int) {
     if (continuation.isActive) continuation.resume(Unit)
 }
 
-// 在通知栏显示下载进度。
+// 在通知栏显示下载进度
 internal fun showUpdateProgressNotification(progress: Float) {
     val context = ApplicationContext.instance
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -270,7 +270,7 @@ internal fun showUpdateProgressNotification(progress: Float) {
     }
 }
 
-// 取消下载进度通知。
+// 取消下载进度通知
 internal fun cancelUpdateProgressNotification() {
     try {
         NotificationManagerCompat
